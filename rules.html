@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Who's Who · How to play</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AD%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  :root {
+    --bg: #eef1f6; --surface: #ffffff; --surface-2: #e2e7ef;
+    --ink: #161a24; --ink-2: #4b5364; --ink-3: #8a91a0; --line: #cfd5e0;
+    --accent: #ffd23f; --accent-ink: #1b1400;
+    --board: #2747c7; --board-edge: #1b3294; --tile: #fffdf5; --tile-ink: #161a24;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141f; --surface: #1b2130; --surface-2: #262e40;
+      --ink: #f2f0ea; --ink-2: #b8bcc7; --ink-3: #7c8291; --line: #333c50;
+      --board: #1f3799; --board-edge: #16276d; --tile: #f4f1e6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px; line-height: 1.5;
+  }
+  h1, h2 {
+    font-family: "Bricolage Grotesque", "Arial Black", Impact, sans-serif;
+    font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin: 0; text-wrap: balance;
+  }
+  h1 { font-size: clamp(36px, 7vw, 56px); }
+  h2 { font-size: 24px; }
+  p { margin: 0; }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 32px 20px 64px; display: grid; gap: 36px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 20px; }
+  .tag { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 4px; transform: rotate(-3deg); }
+  .lead { color: var(--ink-2); font-size: 19px; max-width: 58ch; }
+  section { display: grid; gap: 14px; }
+  ol, ul { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+  li::marker { font-weight: 700; color: var(--ink-3); }
+  strong { font-weight: 700; }
+
+  .board {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 14px; border-radius: 16px;
+    background: var(--board); border-bottom: 8px solid var(--board-edge); perspective: 800px;
+  }
+  .tile {
+    display: grid; justify-items: center; gap: 4px; padding: 10px 4px 8px; border-radius: 8px;
+    background: var(--tile); color: var(--tile-ink); font-weight: 700; font-size: 13px;
+    transform-origin: 50% 100%; box-shadow: 0 3px 0 rgba(0,0,0,.25);
+  }
+  .tile i {
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 17px; color: #14161c;
+  }
+  .tile.down { transform: rotateX(72deg); opacity: .45; filter: grayscale(1); box-shadow: none; }
+  .tile.pick { outline: 4px solid var(--accent); outline-offset: 2px; }
+  .caption { color: var(--ink-3); font-size: 14px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button.tile { border: none; width: 100%; transition: transform .4s cubic-bezier(.3,.9,.4,1), opacity .4s, filter .4s; }
+  .tile.hit { outline: 5px solid var(--accent); outline-offset: 2px; }
+  .demo-head, .demo-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .demo-actions { justify-content: flex-start; }
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .seg button { border: none; background: var(--surface); padding: 9px 16px; font-weight: 700; font-size: 15px; }
+  .seg button.on { background: var(--ink); color: var(--bg); }
+  .worth { font-weight: 700; background: var(--accent); color: var(--accent-ink); padding: 4px 12px; border-radius: 999px; font-size: 15px; }
+  .clues { display: grid; gap: 8px; }
+  .clue { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; display: grid; gap: 2px; }
+  .clue.new { border-color: var(--accent); box-shadow: inset 5px 0 0 var(--accent); }
+  .clue .q { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .clue .a { overflow-wrap: anywhere; font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 20px; line-height: 1.15; }
+  .btn { padding: 12px 22px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--surface); font-weight: 700; }
+  .btn.accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary { background: var(--ink); color: var(--bg); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .result { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 22px; min-height: 1.2em; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid #2b6de8; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { button.tile { transition: none; } }
+  @media (max-width: 480px) { .board { grid-template-columns: repeat(3, 1fr); } }
+
+  .wrap > *, section > * { min-width: 0; }
+  .points { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .pt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 6px; text-align: center; display: grid; gap: 2px; }
+  .pt b { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pt span { font-size: 11px; white-space: nowrap; color: var(--ink-3); text-transform: uppercase; letter-spacing: .02em; font-weight: 700; }
+  .pt:first-child { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pt:first-child span { color: var(--accent-ink); }
+
+  .cta {
+    display: inline-block; justify-self: start; text-decoration: none; font-weight: 700; font-size: 19px;
+    background: var(--accent); color: var(--accent-ink); padding: 14px 26px; border-radius: 999px;
+  }
+  .cta:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  .fine { color: var(--ink-3); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header style="display:grid;gap:16px">
+    <div class="brand"><span class="tag">HELLO</span> Who's Who</div>
+    <h1>Guess the teammate behind the answers</h1>
+    <p class="lead">Everyone answers a few questions in secret. Then a mystery teammate's answers come out one clue at a time, and you race to work out who it is. Takes about 20 minutes for a team of seven.</p>
+  </header>
+
+  <section>
+    <h2>Before the game</h2>
+    <ol>
+      <li><strong>Open the game link</strong> on your phone or laptop. No account, nothing to install.</li>
+      <li><strong>Fill in your card.</strong> Your name plus at least five answers. Keep answers short, and don't write anything that names you.</li>
+      <li><strong>Tap "Put me on the board".</strong> Your tile appears on the shared screen.</li>
+    </ol>
+    <p class="caption">One person shares their screen and runs the game. They don't guess, but they can still be a mystery person.</p>
+  </section>
+
+  <section>
+    <h2>Each round</h2>
+    <ol>
+      <li><strong>A clue appears</strong> on the shared screen and on your phone. Either/or answers come first, the telling ones later.</li>
+      <li><strong>Flip down</strong> the people it can't be by tapping their tiles.</li>
+      <li><strong>Lock in your guess</strong> when you dare: switch to "Guess", tap a tile, confirm. You get one shot and no take-backs.</li>
+      <li><strong>Reveal.</strong> Every tile drops except the mystery person, and you see who guessed whom.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Points</h2>
+    <p>The earlier you lock in, the more a correct guess is worth.</p>
+    <div class="points">
+      <div class="pt"><b>5</b><span>Clue 1</span></div>
+      <div class="pt"><b>4</b><span>Clue 2</span></div>
+      <div class="pt"><b>3</b><span>Clue 3</span></div>
+      <div class="pt"><b>2</b><span>Clue 4</span></div>
+      <div class="pt"><b>1</b><span>Clue 5+</span></div>
+    </div>
+    <ul>
+      <li>A wrong guess or no guess scores zero.</li>
+      <li>When it's your own card on screen, you don't guess. Keep a poker face.</li>
+      <li>Most points after everyone has been the mystery person wins.</li>
+    </ul>
+  </section>
+
+  <section id="demo">
+    <h2>Try it</h2>
+    <p>A practice round with a made-up team. Nobody sees this but you.</p>
+    <div class="demo-head">
+      <div class="seg" role="group" aria-label="Board mode">
+        <button type="button" id="mFlip" class="on">Flip down</button>
+        <button type="button" id="mGuess">Guess</button>
+      </div>
+      <span class="worth" id="worth"></span>
+    </div>
+    <div class="clues" id="clues"></div>
+    <div class="board" id="board"></div>
+    <div class="demo-actions">
+      <button type="button" class="btn accent" id="nextClue">Next clue</button>
+      <button type="button" class="btn primary" id="lock" hidden></button>
+      <button type="button" class="btn" id="again" hidden>Play again</button>
+    </div>
+    <p class="result" id="result" role="status"></p>
+  </section>
+
+  <a class="cta" id="cta" href="./">Open the game</a>
+
+  <p class="fine">Nothing is stored. Answers travel encrypted between the players' browsers, and the game disappears when everyone closes the page.</p>
+
+</main>
+<script>
+(() => {
+  const TEAM = [['Ania', '#8ad7ff'], ['Marco', '#ffa4c4'], ['Kasia', '#a8e6a1'], ['Gemma', '#ffd23f'], ['Piotr', '#c9b6ff']];
+  const ANSWER = 'Marco';
+  const CLUES = [
+    ['Fast-fire round', 'Dragon Ball · Snake · Dubbed · Kinder Surprise'],
+    ['Your first mobile phone', 'Nokia 3310, obviously'],
+    ['The school snack you still remember', 'Focaccia from the bakery next door'],
+    ['Where childhood summer holidays meant', 'Two weeks in Rimini, same beach umbrella every year'],
+  ];
+  const $ = id => document.getElementById(id);
+  let k, mode, down, pick, done;
+  const pts = () => Math.max(1, 6 - k);
+
+  function reset() { k = 1; mode = 'flip'; down = new Set(); pick = null; done = false; $('result').textContent = ''; draw(); }
+  function draw() {
+    $('mFlip').className = mode === 'flip' ? 'on' : '';
+    $('mGuess').className = mode === 'guess' ? 'on' : '';
+    $('worth').textContent = `Clue ${k} of ${CLUES.length} · worth ${pts()} pt${pts() === 1 ? '' : 's'}`;
+    $('clues').replaceChildren(...CLUES.slice(0, done ? CLUES.length : k).map(([q, a], i) => {
+      const d = document.createElement('div'); d.className = 'clue' + (!done && i === k - 1 ? ' new' : '');
+      const qq = document.createElement('div'); qq.className = 'q'; qq.textContent = q;
+      const aa = document.createElement('div'); aa.className = 'a'; aa.textContent = a;
+      d.append(qq, aa); return d;
+    }));
+    $('board').replaceChildren(...TEAM.map(([name, col]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.disabled = done;
+      const isDown = done ? name !== ANSWER : down.has(name);
+      b.className = 'tile' + (isDown ? ' down' : '') + (!done && pick === name ? ' pick' : '') + (done && name === ANSWER ? ' hit' : '');
+      const i = document.createElement('i'); i.style.background = col; i.textContent = name[0];
+      b.append(i, name);
+      b.onclick = () => {
+        if (mode === 'flip') { down.has(name) ? down.delete(name) : down.add(name); if (pick === name) pick = null; }
+        else { pick = pick === name ? null : name; down.delete(name); }
+        draw();
+      };
+      return b;
+    }));
+    $('nextClue').hidden = done; $('nextClue').disabled = k >= CLUES.length;
+    $('lock').hidden = done || !pick; $('lock').textContent = pick ? `Lock in ${pick} for ${pts()} pt${pts() === 1 ? '' : 's'}` : '';
+    $('again').hidden = !done;
+  }
+  $('mFlip').onclick = () => { mode = 'flip'; pick = null; draw(); };
+  $('mGuess').onclick = () => { mode = 'guess'; draw(); };
+  $('nextClue').onclick = () => { if (k < CLUES.length) { k++; draw(); } };
+  $('lock').onclick = () => {
+    const ok = pick === ANSWER, won = pts();
+    done = true; draw();
+    $('result').textContent = ok ? `Correct! It was Marco. +${won} pt${won === 1 ? '' : 's'}` : `Not this time. It was Marco. You said ${pick}.`;
+  };
+  $('again').onclick = reset;
+  reset();
+
+  // inside the game's overlay there is already a game open behind this page
+  if (window.self !== window.top) $('cta').hidden = true;
+})();
+</script>
+</body>
+</html>

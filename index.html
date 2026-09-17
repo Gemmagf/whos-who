@@ -254,6 +254,20 @@
     background: var(--surface); border: 1.5px solid var(--ink); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow);
   }
 
+  .brand { margin-right: auto; }
+  .rules-btn { border: 1.5px solid var(--ink); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  #rulesDlg { width: min(760px, 96vw); max-width: 96vw; height: min(90vh, 900px); padding: 0; border: none; border-radius: 16px; overflow: hidden; background: var(--bg); color: var(--ink); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  #rulesDlg[open] { display: flex; flex-direction: column; }
+  .rules-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; }
+  #rulesDlg::backdrop { background: rgba(10, 13, 22, .6); }
+  #rulesFrame { width: 100%; flex: 1; min-height: 0; border: none; display: block; }
+  .rules-close { border: 1.5px solid var(--ink); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 14px; }
+  @media (max-width: 520px) {
+    .status #statusText { display: none; }
+    .topbar { padding: 12px 14px; gap: 8px; }
+    .brand { font-size: 17px; gap: 7px; white-space: nowrap; }
+    .rules-btn { padding: 6px 11px; font-size: 13px; }
+  }
   .sharebox { display: flex; gap: 8px; align-items: stretch; }
   .sharebox input { flex: 1; min-width: 0; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 15px; }
   canvas#confetti { position: fixed; inset: 0; pointer-events: none; width: 100%; height: 100%; }
@@ -267,11 +281,16 @@
 
 <header class="topbar">
   <div class="brand"><span class="tag">HELLO</span> Who's Who</div>
+  <button class="rules-btn" id="rulesBtn" type="button">Rules &amp; demo</button>
   <button class="status" id="status" type="button" title="Show connection details"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span></button>
 </header>
 <div id="diag" hidden></div>
 
 <main id="app"></main>
+<dialog id="rulesDlg" aria-label="Rules and demo">
+  <div class="rules-bar"><span>Rules &amp; demo</span><button class="rules-close" id="rulesClose" type="button">Close</button></div>
+  <iframe id="rulesFrame" title="Rules and demo" loading="lazy"></iframe>
+</dialog>
 <canvas id="confetti" hidden></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
@@ -933,6 +952,9 @@
 
   // ---------- start ----------
   $('#status').addEventListener('click', () => { showDiag = !showDiag; renderDiag(); });
+  $('#rulesBtn').addEventListener('click', () => { const f = $('#rulesFrame'); if (!f.getAttribute('src')) f.src = 'rules.html'; $('#rulesDlg').showModal(); });
+  $('#rulesClose').addEventListener('click', () => $('#rulesDlg').close());
+  $('#rulesDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
   if (!CODE) {
     // No room in the link: offer to open one. The code is random and only exists in the link you share.
