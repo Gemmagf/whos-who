@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Who's Who</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AD%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #e2e7ef;
+    --ink: #161a24;
+    --ink-2: #4b5364;
+    --ink-3: #8a91a0;
+    --line: #cfd5e0;
+    --accent: #ffd23f;
+    --accent-ink: #1b1400;
+    --board: #2747c7;
+    --board-edge: #1b3294;
+    --tile: #fffdf5;
+    --tile-ink: #161a24;
+    --good: #1f9e5c;
+    --good-soft: #d7f3e3;
+    --bad: #e4553f;
+    --bad-soft: #fde1dc;
+    --focus: #2b6de8;
+    --shadow: 0 10px 30px rgba(22, 26, 36, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10141f;
+      --surface: #1b2130;
+      --surface-2: #262e40;
+      --ink: #f2f0ea;
+      --ink-2: #b8bcc7;
+      --ink-3: #7c8291;
+      --line: #333c50;
+      --accent: #ffd23f;
+      --accent-ink: #1b1400;
+      --board: #1f3799;
+      --board-edge: #16276d;
+      --tile: #f4f1e6;
+      --tile-ink: #161a24;
+      --good: #5bd48b;
+      --good-soft: #1c3b2b;
+      --bad: #ff7a66;
+      --bad-soft: #452420;
+      --focus: #7aa5ff;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10141f;
+    --surface: #1b2130;
+    --surface-2: #262e40;
+    --ink: #f2f0ea;
+    --ink-2: #b8bcc7;
+    --ink-3: #7c8291;
+    --line: #333c50;
+    --accent: #ffd23f;
+    --accent-ink: #1b1400;
+    --board: #1f3799;
+    --board-edge: #16276d;
+    --tile: #f4f1e6;
+    --tile-ink: #161a24;
+    --good: #5bd48b;
+    --good-soft: #1c3b2b;
+    --bad: #ff7a66;
+    --bad-soft: #452420;
+    --focus: #7aa5ff;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", "Arial Black", Impact, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0;
+    text-wrap: balance;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
+  }
+  .brand .tag {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    padding: 2px 8px; border-radius: 4px; transform: rotate(-3deg);
+  }
+  .status {
+    display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2);
+    background: none; border: none; padding: 4px 6px; border-radius: 6px; text-align: right;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .dot.on { background: var(--good); }
+  #diag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.6;
+    color: var(--ink-2); background: var(--surface-2); padding: 10px 20px;
+    border-bottom: 1px solid var(--line); overflow-x: auto; white-space: nowrap;
+  }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 28px 20px 60px; }
+  .wrap.wide { max-width: 1240px; }
+  .stack { display: grid; gap: 18px; }
+  .muted { color: var(--ink-3); font-size: 14px; }
+
+  .eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; margin: 0; }
+  .lead { color: var(--ink-2); margin: 0; max-width: 60ch; }
+
+  .field { display: grid; gap: 6px; }
+  .field label { font-weight: 700; }
+  .field input {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface);
+  }
+  .field input:focus { border-color: var(--focus); }
+  form { display: grid; gap: 20px; margin-top: 10px; }
+  .fs { border: none; padding: 0; margin: 0; display: grid; gap: 18px; }
+  .fs legend { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.01em; padding: 0; margin-bottom: 12px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 700; font-size: 15px; }
+  .opt.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 22px; border-radius: 999px; border: 1.5px solid var(--ink);
+    background: var(--surface); font-weight: 700; transition: transform .08s ease;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn.primary { background: var(--ink); color: var(--bg); }
+  .btn.accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.big { font-size: 20px; padding: 16px 30px; }
+  .btn.ghost { border-color: var(--line); color: var(--ink-2); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .link { background: none; border: none; padding: 0; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+
+  .notice { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px 16px; color: var(--ink-2); font-size: 15px; }
+  .notice.warn { border: 1.5px solid var(--bad); color: var(--ink); background: var(--bad-soft); }
+
+  .avatar {
+    width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center;
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 13px; color: #14161c; flex: none;
+  }
+
+  /* ---- the board: flip-down tiles, like the tabletop game ---- */
+  .board {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px;
+    padding: 16px; border-radius: 18px;
+    background: var(--board); border-bottom: 8px solid var(--board-edge);
+    perspective: 900px;
+  }
+  .board.small { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; padding: 12px; }
+  .tile {
+    position: relative; display: grid; justify-items: center; gap: 6px;
+    padding: 12px 8px 10px; border-radius: 10px; border: none;
+    background: var(--tile); color: var(--tile-ink);
+    font-weight: 700; font-size: 15px; line-height: 1.15; text-align: center;
+    transform-origin: 50% 100%; transition: transform .4s cubic-bezier(.3,.9,.4,1), opacity .4s, filter .4s;
+    box-shadow: 0 3px 0 rgba(0,0,0,.25);
+    min-height: 96px; width: 100%;
+  }
+  .tile .avatar { width: 46px; height: 46px; font-size: 22px; }
+  .tile .nm { overflow-wrap: anywhere; }
+  .tile.down { transform: rotateX(74deg); opacity: .45; filter: grayscale(1); box-shadow: none; }
+  .tile.sel { outline: 4px solid var(--accent); outline-offset: 2px; }
+  .tile.hit { outline: 5px solid var(--accent); outline-offset: 2px; transform: scale(1.04); z-index: 1; }
+  .tile.pending { opacity: .55; font-weight: 400; }
+  .tile .badge {
+    position: absolute; top: -8px; right: -6px; min-width: 24px; height: 24px; padding: 0 6px;
+    border-radius: 999px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700;
+    font-variant-numeric: tabular-nums; box-shadow: 0 1px 0 rgba(0,0,0,.3);
+  }
+  .tile .badge.ok { background: var(--good); color: #fff; }
+
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .seg button { border: none; background: var(--surface); padding: 9px 16px; font-weight: 700; font-size: 15px; }
+  .seg button.on { background: var(--ink); color: var(--bg); }
+
+  /* ---- clues ---- */
+  .clues { display: grid; gap: 12px; }
+  .clue {
+    background: var(--surface); border-radius: 12px; padding: 14px 18px;
+    border: 1px solid var(--line); display: grid; gap: 4px;
+  }
+  .clue.new { border-color: var(--accent); box-shadow: inset 5px 0 0 var(--accent); }
+  .clue .q { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .clue .a { font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 22px; line-height: 1.15; overflow-wrap: anywhere; }
+  .stage .clue .a { font-size: clamp(22px, 2.4vw, 32px); }
+  .clue-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .clue-row .clue .a, .stage .clue-row .clue .a { font-size: 18px; }
+  .worth {
+    display: inline-flex; align-items: baseline; gap: 6px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink); padding: 4px 12px; border-radius: 999px; font-size: 15px;
+  }
+
+  /* ---- host stage ---- */
+  .stage { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .stage { grid-template-columns: 1fr; } }
+  .stage h1 { font-size: clamp(34px, 4.6vw, 60px); }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: grid; gap: 12px; }
+  .panel h3 { font-size: 16px; letter-spacing: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .panel h3 span { font-family: "Atkinson Hyperlegible", sans-serif; font-weight: 400; color: var(--ink-3); font-size: 14px; }
+  .tally { display: grid; gap: 8px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+  .row .name { font-weight: 700; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .row .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .pts { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-2); }
+  .said { display: grid; gap: 6px; font-size: 15px; }
+  .said .good { color: var(--good); font-weight: 700; }
+
+  .reveal-name {
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+    font-size: clamp(40px, 6vw, 88px); line-height: 1; letter-spacing: -0.03em;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .reveal-name .avatar { width: 2em; height: 2em; font-size: .45em; }
+
+  .podium { display: grid; gap: 10px; }
+  .podium .row { padding: 12px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+  .podium .row:first-child { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .podium .row:first-child .pts { color: var(--accent-ink); }
+  .podium .rank { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; width: 28px; }
+
+  .result-banner { border-radius: 14px; padding: 20px 22px; font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 28px; }
+  .result-banner.good { background: var(--good-soft); color: var(--good); }
+  .result-banner.bad { background: var(--bad-soft); color: var(--bad); }
+  .result-banner.neutral { background: var(--surface-2); color: var(--ink); }
+
+  .lockbar {
+    position: sticky; bottom: 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    background: var(--surface); border: 1.5px solid var(--ink); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow);
+  }
+
+  .sharebox { display: flex; gap: 8px; align-items: stretch; }
+  .sharebox input { flex: 1; min-width: 0; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 15px; }
+  canvas#confetti { position: fixed; inset: 0; pointer-events: none; width: 100%; height: 100%; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tile { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="tag">HELLO</span> Who's Who</div>
+  <button class="status" id="status" type="button" title="Show connection details"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span></button>
+</header>
+<div id="diag" hidden></div>
+
+<main id="app"></main>
+<canvas id="confetti" hidden></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  // ---------- constants ----------
+  const Q = [
+    { s: 'Growing Up', q: 'What field did your parents work in?' },
+    { s: 'Growing Up', q: 'The school lunch or snack you still remember (fondly or not)' },
+    { s: 'Growing Up', q: 'The cartoon or TV show you ran home for' },
+    { s: 'Growing Up', q: 'The poster on your teenage bedroom wall' },
+    { s: 'Millennial Archives', q: 'Your first mobile phone' },
+    { s: 'Millennial Archives', q: 'Your MSN or Gadu-Gadu nickname, or first embarrassing email address' },
+    { s: 'Millennial Archives', q: 'The first album, CD or cassette you owned' },
+    { s: 'Millennial Archives', q: 'Where childhood summer holidays meant' },
+    { s: 'Hypotheticals', q: 'You host Eurovision night. Which dish do you bring?' },
+    { s: 'Hypotheticals', q: 'The job you wanted at age 8' },
+    { s: 'Fast-Fire Round', q: 'Dragon Ball or Sailor Moon?', o: ['Dragon Ball', 'Sailor Moon'] },
+    { s: 'Fast-Fire Round', q: 'Nokia Snake or Tamagotchi?', o: ['Snake', 'Tamagotchi'] },
+    { s: 'Fast-Fire Round', q: 'Backstreet Boys or Spice Girls?', o: ['Backstreet Boys', 'Spice Girls'] },
+    { s: 'Fast-Fire Round', q: 'Harry Potter or Lord of the Rings?', o: ['Harry Potter', 'Lord of the Rings'] },
+    { s: 'Fast-Fire Round', q: 'Pasta or pierogi?', o: ['Pasta', 'Pierogi'] },
+    { s: 'Fast-Fire Round', q: 'Dubbed or subtitles?', o: ['Dubbed', 'Subtitles'] },
+    { s: 'Fast-Fire Round', q: '6 am Ryanair or night train?', o: ['6 am Ryanair', 'Night train'] },
+    { s: 'Fast-Fire Round', q: 'Kinder Surprise or Haribo?', o: ['Kinder Surprise', 'Haribo'] },
+    { s: 'One More', q: 'The first thing you bought with your own salary' },
+  ];
+  const SECTIONS = [...new Set(Q.map(x => x.s))];
+  const MIN_ANSWERS = 5;
+  const MAX_ANS = 70;
+  const MAX_NAME = 24;
+  const MIN_PLAYERS = 3;
+  const MAX_PTS = 5;                       // guess on the first clue
+  const ptsFor = k => Math.max(1, MAX_PTS + 1 - k);
+  const PALETTE = ['#ffd23f', '#8ad7ff', '#ffa4c4', '#a8e6a1', '#ffb570', '#c9b6ff', '#7ee8d8', '#f5e08a'];
+
+  // ---------- per-tab session state (never leaves this browser tab) ----------
+  const ss = {
+    get(k) { try { return JSON.parse(sessionStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { sessionStorage.removeItem(k); } catch {} },
+  };
+  const rand = () => Math.random().toString(36).slice(2, 10);
+
+  // The room code lives in the link after the #, which browsers never send to any server.
+  const CODE = (/^#r=([a-z0-9]{8,40})$/i.exec(location.hash) || [])[1] || null;
+  addEventListener('hashchange', () => location.reload());
+  const K = name => `ww:${CODE}:${name}`;
+
+  const saved = ss.get(K('me')) || {};
+  const me = {
+    id: ss.get(K('id')) || rand(),
+    n: typeof saved.n === 'string' ? saved.n : '',
+    a: Array.isArray(saved.a) ? saved.a.slice(0, Q.length).map(s => String(s || '')) : [],
+    ok: !!saved.ok,
+    g: saved.g && typeof saved.g === 'object' ? saved.g : {},   // { round: [guessedId, clueStep] }
+    h: ss.get(K('host')) || null,                              // host state when this tab runs the shared screen
+  };
+  ss.set(K('id'), me.id);
+  while (me.a.length < Q.length) me.a.push('');
+
+  let room = null;
+  let editing = !me.ok;
+  let hostView = !!me.h;
+  let lastRevealKey = null;
+  let mode = 'flip';            // player board mode: 'flip' tiles down, or 'guess'
+  let pick = null;              // tile selected in guess mode
+  const flips = new Map();      // roundKey -> Set of ids flipped down (local only)
+
+  function persist() {
+    ss.set(K('me'), { n: me.n, a: me.a, ok: me.ok, g: me.g });
+    if (me.h) ss.set(K('host'), me.h); else ss.del(K('host'));
+  }
+  async function setMe(patch) {
+    Object.assign(me, patch);
+    persist();
+    if (room) {
+      const p = { id: me.id };
+      for (const k of Object.keys(patch)) p[k] = me[k] === null || me[k] === undefined ? null : me[k];
+      try { await room.presence(p); } catch (e) { console.warn('presence', e); }
+    }
+    render();
+  }
+
+  // ---------- reading the room ----------
+  function snapshot() {
+    const peers = room ? room.peers() : [];
+    const byId = new Map();
+    for (const p of peers) {
+      const pr = p.presence || {};
+      const id = typeof pr.id === 'string' ? pr.id : null;
+      if (!id) continue;
+      const prev = byId.get(id);
+      if (!prev || p.sameTab || (!prev.sameTab && p.updatedAt >= prev.updatedAt)) byId.set(id, p);
+    }
+    if (!byId.has(me.id)) byId.set(me.id, { peer: 'me', sameTab: true, presence: { id: me.id, n: me.n, a: me.a, ok: me.ok, g: me.g, h: me.h }, updatedAt: Date.now() });
+    const all = [...byId.values()];
+    const players = all
+      .filter(p => p.presence.ok === true && typeof p.presence.n === 'string' && p.presence.n.trim())
+      .sort((x, y) => String(x.presence.n).localeCompare(String(y.presence.n), 'en'));
+    let host = null;
+    for (const p of all) {
+      const h = p.presence.h;
+      if (h && typeof h === 'object' && typeof h.since === 'number' && (!host || h.since > host.presence.h.since)) host = p;
+    }
+    return { all, byId, players, host, H: host ? host.presence.h : null };
+  }
+
+  const nameOf = (S, id) => {
+    const p = S.byId.get(id);
+    return p && typeof p.presence.n === 'string' && p.presence.n ? p.presence.n : 'Someone who left';
+  };
+  const colorOf = id => { let x = 0; for (const c of String(id)) x = (x * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[x % PALETTE.length]; };
+  const initialOf = n => (String(n).trim()[0] || '?').toUpperCase();
+  const guessOf = (p, r) => { const v = p.presence.g && p.presence.g[String(r)]; return Array.isArray(v) && typeof v[0] === 'string' ? { id: v[0], k: Number(v[1]) || 99 } : null; };
+  const roundKey = H => `${H.since}:${H.round}`;
+  const hostId = S => (S.host ? S.host.presence.id : null);
+  const votersOf = (S, targetId) => S.players.filter(p => p.presence.id !== targetId && p.presence.id !== hostId(S));
+
+  function revealedCount(H) {
+    if (!H || !Array.isArray(H.order)) return 0;
+    if (H.phase === 'end') return H.order.length;
+    if (H.phase === 'reveal') return H.round + 1;
+    if (H.phase === 'round') return H.round;
+    return 0;
+  }
+  function scores(S) {
+    const H = S.H, n = revealedCount(H), out = new Map();
+    for (const p of S.players) {
+      let s = 0;
+      for (let r = 0; r < n; r++) {
+        const g = guessOf(p, r);
+        if (g && H.order[r] !== p.presence.id && g.id === H.order[r]) s += ptsFor(g.k);
+      }
+      out.set(p.presence.id, s);
+    }
+    return out;
+  }
+
+  // ---------- DOM helpers ----------
+  const $ = sel => document.querySelector(sel);
+  function el(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') e.className = v;
+      else if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+      else if (k === 'disabled') e.disabled = !!v;
+      else if (k === 'style') e.style.cssText = v;
+      else e.setAttribute(k, v);
+    }
+    for (const k of kids.flat()) {
+      if (k === null || k === undefined || k === false) continue;
+      e.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    }
+    return e;
+  }
+  const avatar = (id, n) => el('span', { class: 'avatar', style: `background:${colorOf(id)}` }, initialOf(n));
+
+  // one tile on the board. opts: {down, sel, hit, pending, badge, badgeOk, onClick}
+  function tile(id, name, o = {}) {
+    const cls = 'tile' + (o.down ? ' down' : '') + (o.sel ? ' sel' : '') + (o.hit ? ' hit' : '') + (o.pending ? ' pending' : '');
+    const kids = [avatar(id, name), el('span', { class: 'nm' }, name, id === me.id ? ' (you)' : ''),
+      o.badge !== undefined && o.badge !== null ? el('span', { class: 'badge' + (o.badgeOk ? ' ok' : '') }, String(o.badge)) : null];
+    return o.onClick ? el('button', { class: cls, type: 'button', on: { click: o.onClick } }, ...kids) : el('div', { class: cls }, ...kids);
+  }
+
+  // clues revealed so far, in reveal order; the newest step is highlighted
+  function cluesBlock(S, H, showAll) {
+    const target = S.byId.get(H.order[H.round]);
+    if (!target) return el('div', { class: 'notice warn' }, 'This person has disconnected.');
+    const a = Array.isArray(target.presence.a) ? target.presence.a : [];
+    const steps = Array.isArray(H.co) ? H.co : [];
+    const upto = showAll ? steps.length : Math.min(H.k || 1, steps.length);
+    const box = el('div', { class: 'clues' });
+    for (let s = 0; s < upto; s++) {
+      const idx = (Array.isArray(steps[s]) ? steps[s] : []).filter(i => Q[i] && String(a[i] || '').trim());
+      if (!idx.length) continue;
+      const isNew = !showAll && s === upto - 1;
+      const items = idx.map(i => el('div', { class: 'clue' + (isNew ? ' new' : '') }, el('div', { class: 'q' }, Q[i].q), el('div', { class: 'a' }, String(a[i]).trim())));
+      box.append(idx.length > 1 ? el('div', { class: 'clue-row' }, ...items) : items[0]);
+    }
+    return box;
+  }
+  // order in which a person's answers come out: vague either/or picks first (four at a time), then the telling ones
+  function stepsFor(S, id) {
+    const p = S.byId.get(id);
+    if (!p) return [];
+    const a = Array.isArray(p.presence.a) ? p.presence.a : [];
+    const answered = Q.map((_, i) => i).filter(i => String(a[i] || '').trim());
+    const quick = shuffle(answered.filter(i => Q[i].o)), text = shuffle(answered.filter(i => !Q[i].o));
+    const steps = [];
+    for (let i = 0; i < quick.length; i += 4) steps.push(quick.slice(i, i + 4));
+    for (const i of text) steps.push([i]);
+    return steps;
+  }
+
+  // ---------- render ----------
+  function render() {
+    // never rebuild the form under someone who is typing in it
+    if (!hostView && editing && $('#app form')) { renderDiag(); return; }
+    const S = snapshot();
+    const app = $('#app');
+    app.replaceChildren();
+    if (hostView) renderHost(S, app); else renderPlayer(S, app);
+    renderDiag();
+  }
+
+  // ===== PLAYER =====
+  function renderPlayer(S, app) {
+    const H = S.H;
+    if (editing) return app.append(profileForm());
+    const wrap = el('div', { class: 'wrap stack' });
+    app.append(wrap);
+
+    if (!H || H.phase === 'lobby') {
+      wrap.append(
+        el('p', { class: 'eyebrow' }, 'Card submitted'),
+        el('h1', null, 'You\'re on the board'),
+        el('p', { class: 'lead' }, H ? 'The person sharing their screen will start once everyone is in.' : 'Nobody has taken the shared screen yet. The game starts when someone picks "I\'m sharing the screen".'),
+        lobbyBoard(S, true),
+        shareBox(),
+        el('div', { class: 'actions' },
+          el('button', { class: 'btn ghost', on: { click: () => { editing = true; render(); } } }, 'Edit my card'),
+          el('button', { class: 'link', on: { click: becomeHost } }, 'I\'m sharing the screen')));
+      return;
+    }
+    if (H.phase === 'end') {
+      wrap.append(el('p', { class: 'eyebrow' }, 'Final'), el('h1', null, 'Leaderboard'), podium(S));
+      return;
+    }
+
+    const r = H.round, targetId = H.order[r];
+    const eyebrow = el('p', { class: 'eyebrow' }, `Round ${r + 1} of ${H.order.length}`);
+    const myGuess = guessOf({ presence: me }, r);
+
+    if (targetId === me.id) {
+      wrap.append(eyebrow, el('h1', null, 'It\'s you on the board!'),
+        el('p', { class: 'lead' }, 'Poker face. These are the clues everyone has seen so far.'),
+        cluesBlock(S, H, H.phase === 'reveal'), H.phase === 'reveal' ? pointsPanel(S) : null);
+      return;
+    }
+
+    if (H.phase === 'reveal') {
+      const ok = myGuess && myGuess.id === targetId;
+      wrap.append(eyebrow,
+        el('div', { class: 'result-banner ' + (myGuess ? (ok ? 'good' : 'bad') : 'neutral') },
+          myGuess ? (ok ? `Correct! +${ptsFor(myGuess.k)} pts` : 'Not this time…') : 'You didn\'t lock in a guess'),
+        el('p', { class: 'lead' }, 'It was ', el('strong', null, nameOf(S, targetId)), myGuess && !ok ? `. You said ${nameOf(S, myGuess.id)}.` : '.'),
+        pointsPanel(S));
+      return;
+    }
+
+    // guessing phase
+    const key = roundKey(H);
+    if (!flips.has(key)) { flips.clear(); flips.set(key, new Set()); pick = null; mode = 'flip'; }
+    const down = flips.get(key);
+    const others = S.players.filter(p => p.presence.id !== me.id);
+    const worth = ptsFor(H.k || 1);
+
+    wrap.append(eyebrow, el('h1', null, 'Who is it?'), cluesBlock(S, H, false));
+
+    if (myGuess) {
+      wrap.append(
+        el('div', { class: 'result-banner neutral' }, `Locked in: ${nameOf(S, myGuess.id)}`),
+        el('p', { class: 'muted' }, `If you're right, that's ${ptsFor(myGuess.k)} pts. Watch the shared screen for the reveal.`),
+        el('div', { class: 'board small' }, ...others.map(p => tile(p.presence.id, p.presence.n, { down: p.presence.id !== myGuess.id, hit: p.presence.id === myGuess.id }))));
+      return;
+    }
+
+    wrap.append(
+      el('div', { class: 'actions', style: 'justify-content:space-between' },
+        el('div', { class: 'seg', role: 'group', 'aria-label': 'Board mode' },
+          el('button', { type: 'button', class: mode === 'flip' ? 'on' : '', on: { click: () => { mode = 'flip'; pick = null; render(); } } }, 'Flip down'),
+          el('button', { type: 'button', class: mode === 'guess' ? 'on' : '', on: { click: () => { mode = 'guess'; render(); } } }, 'Guess')),
+        el('span', { class: 'worth' }, `Worth ${worth} pt${worth === 1 ? '' : 's'} now`)),
+      el('div', { class: 'board small' }, ...others.map(p => {
+        const id = p.presence.id;
+        return tile(id, p.presence.n, {
+          down: down.has(id), sel: mode === 'guess' && pick === id,
+          onClick: () => {
+            if (mode === 'flip') { down.has(id) ? down.delete(id) : down.add(id); if (pick === id) pick = null; }
+            else { pick = pick === id ? null : id; down.delete(id); }
+            render();
+          },
+        });
+      })),
+      mode === 'guess' && pick
+        ? el('div', { class: 'lockbar' },
+            el('span', null, 'One shot per round. No take-backs.'),
+            el('button', { class: 'btn accent', on: { click: () => setMe({ g: { ...me.g, [String(r)]: [pick, H.k || 1] } }) } }, `Lock in ${nameOf(S, pick)} for ${worth} pt${worth === 1 ? '' : 's'}`))
+        : el('p', { class: 'muted' }, mode === 'flip'
+            ? `Tap to flip down the people it can't be. ${others.length - down.size} still standing. Guess early for more points, but you only get one shot.`
+            : 'Tap the person you think it is.'));
+  }
+
+  function pointsPanel(S) {
+    return el('div', { class: 'panel' },
+      el('h3', null, 'Points', el('span', null, `after ${revealedCount(S.H)} round${revealedCount(S.H) === 1 ? '' : 's'}`)),
+      el('div', { class: 'tally' }, ...rankList(S).slice(0, 6).map(scoreRow)));
+  }
+
+  function lobbyBoard(S, small) {
+    const pending = S.all.filter(p => !p.presence.ok);
+    return el('div', { class: 'board' + (small ? ' small' : '') },
+      ...S.players.map(p => tile(p.presence.id, p.presence.n)),
+      ...pending.map(p => tile(p.presence.id, p.presence.n ? String(p.presence.n) : 'Filling in…', { pending: true })));
+  }
+
+  function profileForm() {
+    const wrap = el('div', { class: 'wrap stack' });
+    const inputs = [];
+    const nameIn = el('input', { type: 'text', maxlength: String(MAX_NAME), autocomplete: 'off', placeholder: 'How your team knows you', value: me.n, id: 'name' });
+    const form = el('form', { on: { submit: e => { e.preventDefault(); submitProfile(nameIn, inputs); } } },
+      el('div', { class: 'field' }, el('label', { for: 'name' }, 'Your name'), nameIn),
+      ...SECTIONS.map(sec => el('fieldset', { class: 'fs' },
+        el('legend', null, sec),
+        ...Q.map((x, i) => [x, i]).filter(([x]) => x.s === sec).map(([x, i]) => {
+          const inp = el('input', { type: 'text', maxlength: String(MAX_ANS), autocomplete: 'off', value: me.a[i], id: 'q' + i, placeholder: x.o ? 'Or type your own answer' : 'Keep it short, it will be read from afar' });
+          inputs[i] = inp;
+          const sync = () => { if (chips) for (const c of chips.children) c.classList.toggle('on', c.textContent === inp.value); };
+          const chips = x.o ? el('div', { class: 'opts' }, ...x.o.map(o =>
+            el('button', { type: 'button', class: 'opt' + (inp.value === o ? ' on' : ''), on: { click: () => { inp.value = o; sync(); } } }, o))) : null;
+          inp.addEventListener('input', sync);
+          return el('div', { class: 'field' }, el('label', { for: 'q' + i }, x.q), chips, inp);
+        }))),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn primary big', type: 'submit' }, me.ok ? 'Save and go back' : 'Put me on the board'),
+        me.ok ? el('button', { class: 'btn ghost', type: 'button', on: { click: () => { editing = false; render(); } } }, 'Cancel') : null),
+      el('p', { class: 'muted', id: 'formMsg' }));
+
+    wrap.append(
+      el('p', { class: 'eyebrow' }, 'Your card'),
+      el('h1', null, 'Answer without saying who you are'),
+      el('p', { class: 'lead' }, 'Your answers come out one clue at a time on the shared screen while the team flips down the people it can\'t be. Your name plus at least five answers is enough. Nothing is stored: close the page and it\'s gone.'),
+      form,
+      el('div', { class: 'actions' }, el('button', { class: 'link', on: { click: becomeHost } }, 'I\'m sharing the screen')));
+    return wrap;
+  }
+  function submitProfile(nameIn, inputs) {
+    const n = nameIn.value.trim().slice(0, MAX_NAME);
+    const a = inputs.map(i => i.value.trim().slice(0, MAX_ANS));
+    const filled = a.filter(Boolean).length;
+    const msg = $('#formMsg');
+    if (!n) { msg.textContent = 'Enter your name.'; nameIn.focus(); return; }
+    if (filled < MIN_ANSWERS) { msg.textContent = `Answer at least ${MIN_ANSWERS} questions (you have ${filled}).`; return; }
+    editing = false;
+    setMe({ n, a, ok: true });
+  }
+
+  // ===== HOST (shared screen) =====
+  function becomeHost() {
+    const S = snapshot();
+    if (S.H && S.host.presence.id !== me.id && !confirm('Someone is already running the game on their screen. Take over? The game in progress will be lost.')) return;
+    hostView = true; editing = false;
+    setMe({ h: { phase: 'lobby', round: 0, order: [], k: 1, co: [], since: Date.now() } });
+  }
+  function setHost(patch) { setMe({ h: { ...me.h, ...patch } }); }
+  function leaveHost() { hostView = false; editing = !me.ok; setMe({ h: null }); }
+  function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function startRound(S, order, round) { setHost({ phase: 'round', order, round, k: 1, co: stepsFor(S, order[round]) }); }
+
+  function renderHost(S, app) {
+    const wrap = el('div', { class: 'wrap wide stack' });
+    app.append(wrap);
+    if (!(S.host && S.host.presence.id === me.id)) {
+      wrap.append(el('div', { class: 'notice warn' }, 'Someone else has taken control of the screen. ',
+        el('button', { class: 'link', on: { click: becomeHost } }, 'Take it back'), ' · ',
+        el('button', { class: 'link', on: { click: leaveHost } }, 'Switch to player')));
+      return;
+    }
+    const H = me.h;
+
+    if (H.phase === 'lobby') {
+      const ready = S.players;
+      wrap.append(el('div', { class: 'stage' },
+        el('div', { class: 'stack' },
+          el('p', { class: 'eyebrow' }, 'Shared screen'),
+          el('h1', null, 'Get on the board'),
+          el('p', { class: 'lead' }, 'Send this link to the team. Everyone opens it on their own device, answers the questions and taps "Put me on the board". Once everybody is up, we start.'),
+          shareBox(),
+          el('div', { class: 'panel' }, el('h3', null, 'How it works'),
+            el('ol', { style: 'margin:0;padding-left:20px;color:var(--ink-2)' },
+              el('li', null, 'A mystery teammate\'s answers come out one clue at a time.'),
+              el('li', null, 'On your phone, flip down the people it can\'t be.'),
+              el('li', null, `Lock in a guess when you dare: ${MAX_PTS} pts on the first clue, fewer with every clue. One shot only.`)),
+            el('p', { class: 'muted', style: 'margin:0' }, 'Whoever shares the screen runs the game and doesn\'t guess, but can still be on the board as a mystery person.')),
+          el('div', { class: 'actions' },
+            el('button', { class: 'btn accent big', disabled: ready.length < MIN_PLAYERS, on: { click: () => startRound(S, shuffle(ready.map(p => p.presence.id)), 0) } }, 'Start the game'),
+            ready.length < MIN_PLAYERS ? el('span', { class: 'muted' }, `At least ${MIN_PLAYERS} people on the board are needed`) : null)),
+        el('div', { class: 'stack' },
+          el('p', { class: 'eyebrow' }, `${ready.length} on the board`),
+          lobbyBoard(S, false), hostFooter())));
+      return;
+    }
+
+    if (H.phase === 'end') {
+      const ranked = rankList(S);
+      wrap.append(
+        el('p', { class: 'eyebrow' }, 'Game over'),
+        el('h1', { style: 'font-size:clamp(34px,5vw,64px)' }, ranked[0] ? `${ranked[0].name} wins` : 'The end'),
+        el('div', { class: 'stage' }, podium(S),
+          el('div', { class: 'stack' }, mysteryPanel(S),
+            hostFooter(el('button', { class: 'btn ghost', on: { click: () => setHost({ phase: 'lobby', round: 0, order: [], k: 1, co: [] }) } }, 'New game')))));
+      return;
+    }
+
+    const r = H.round, targetId = H.order[r], target = S.byId.get(targetId);
+    const voters = votersOf(S, targetId);
+    const voted = voters.filter(p => guessOf(p, r));
+    const newcomers = S.players.filter(p => !H.order.includes(p.presence.id));
+    const isLast = r >= H.order.length - 1;
+    const steps = Array.isArray(H.co) ? H.co.length : 0;
+    const allIn = voters.length > 0 && voted.length === voters.length;
+
+    const left = el('div', { class: 'stack' }, el('p', { class: 'eyebrow' }, `Round ${r + 1} of ${H.order.length}`));
+    const right = el('div', { class: 'stack' });
+
+    if (H.phase === 'round') {
+      const worth = ptsFor(H.k);
+      left.append(
+        el('div', { class: 'actions', style: 'justify-content:space-between' }, el('h1', null, 'Who is it?'),
+          el('span', { class: 'worth' }, `Clue ${Math.min(H.k, steps)} of ${steps} · worth ${worth} pt${worth === 1 ? '' : 's'}`)),
+        cluesBlock(S, H, false),
+        el('div', { class: 'actions' },
+          el('button', { class: 'btn ' + (allIn ? 'ghost' : 'accent') + ' big', disabled: !target || H.k >= steps, on: { click: () => setHost({ k: H.k + 1 }) } }, 'Next clue'),
+          el('button', { class: 'btn ' + (allIn || H.k >= steps ? 'accent' : 'ghost') + ' big', on: { click: () => setHost({ phase: 'reveal' }) } }, 'Reveal'),
+          !target ? el('button', { class: 'btn ghost', on: { click: next } }, 'Skip') : null,
+          allIn ? el('span', { class: 'muted' }, 'Everyone has locked in.') : null));
+      right.append(
+        el('p', { class: 'eyebrow' }, `${voted.length} of ${voters.length} locked in`),
+        el('div', { class: 'board' }, ...S.players.map(p => tile(p.presence.id, p.presence.n, { badge: voted.includes(p) ? '✓' : null, badgeOk: true }))));
+    } else {
+      const votes = new Map();
+      for (const p of voted) { const g = guessOf(p, r); if (!votes.has(g.id)) votes.set(g.id, []); votes.get(g.id).push({ name: p.presence.n, k: g.k }); }
+      const hits = votes.get(targetId) || [];
+      left.append(
+        el('h1', null, 'It was…'),
+        el('div', { class: 'reveal-name' }, avatar(targetId, nameOf(S, targetId)), nameOf(S, targetId)),
+        el('div', { class: 'actions' }, el('button', { class: 'btn accent big', on: { click: next } }, isLast ? 'Show the leaderboard' : 'Next mystery person')),
+        el('div', { class: 'panel' },
+          el('h3', null, 'Who said what', el('span', null, `${hits.length} correct of ${voters.length}`)),
+          el('div', { class: 'said' },
+            ...[...votes.entries()].sort((x, y) => (y[0] === targetId) - (x[0] === targetId) || y[1].length - x[1].length).map(([gid, list]) =>
+              el('div', { class: gid === targetId ? 'good' : '' }, `${nameOf(S, gid)}: `,
+                list.map(v => gid === targetId ? `${v.name} +${ptsFor(v.k)}` : v.name).join(', '))),
+            voters.length > voted.length ? el('div', { class: 'muted' }, `No guess: ${voters.filter(p => !guessOf(p, r)).map(p => p.presence.n).join(', ')}`) : null)),
+        target ? cluesBlock(S, H, true) : null);
+      right.append(
+        el('p', { class: 'eyebrow' }, 'Votes received'),
+        el('div', { class: 'board' }, ...S.players.map(p => {
+          const id = p.presence.id, n = (votes.get(id) || []).length;
+          return tile(id, p.presence.n, { down: id !== targetId, hit: id === targetId, badge: n || null, badgeOk: id === targetId });
+        })));
+    }
+
+    right.append(
+      el('div', { class: 'panel' },
+        el('h3', null, 'Leaderboard', el('span', null, `after ${revealedCount(H)} round${revealedCount(H) === 1 ? '' : 's'}`)),
+        el('div', { class: 'tally' }, ...rankList(S).slice(0, 8).map(scoreRow))),
+      newcomers.length ? el('div', { class: 'notice' }, `${newcomers.length === 1 ? 'A new person has' : newcomers.length + ' new people have'} joined: ${newcomers.map(p => p.presence.n).join(', ')}. `,
+        el('button', { class: 'link', on: { click: () => setHost({ order: [...H.order, ...shuffle(newcomers.map(p => p.presence.id))] }) } }, 'Add to the game')) : null,
+      hostFooter());
+    wrap.append(el('div', { class: 'stage' }, left, right));
+  }
+
+  function shareBox() {
+    const inp = el('input', { type: 'text', readonly: '', value: location.href, 'aria-label': 'Game link', on: { focus: e => e.target.select() } });
+    const btn = el('button', { class: 'btn primary', type: 'button', on: { click: async () => {
+      try { await navigator.clipboard.writeText(location.href); } catch { inp.select(); document.execCommand('copy'); }
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = 'Copy link'; }, 1500);
+    } } }, 'Copy link');
+    return el('div', { class: 'sharebox' }, inp, btn);
+  }
+
+  function hostFooter(...extra) {
+    return el('div', { class: 'actions', style: 'justify-content:flex-end' }, ...extra,
+      el('button', { class: 'link', on: { click: () => { if (confirm('Stop sharing the screen? The game in progress will be lost.')) leaveHost(); } } }, 'Stop sharing'));
+  }
+  function next() {
+    const H = me.h;
+    if (H.round >= H.order.length - 1) setHost({ phase: 'end' });
+    else startRound(snapshot(), H.order, H.round + 1);
+  }
+
+  function rankList(S) {
+    const sc = scores(S);
+    return S.players.filter(p => p.presence.id !== hostId(S)).map(p => ({ id: p.presence.id, name: p.presence.n, pts: sc.get(p.presence.id) || 0 }))
+      .sort((x, y) => y.pts - x.pts || x.name.localeCompare(y.name, 'en'));
+  }
+  function scoreRow(r) {
+    return el('div', { class: 'row' },
+      el('div', { class: 'name' }, avatar(r.id, r.name), el('span', null, r.name, r.id === me.id ? ' (you)' : '')),
+      el('div', { class: 'pts' }, `${r.pts} pt${r.pts === 1 ? '' : 's'}`));
+  }
+  function podium(S) {
+    return el('div', { class: 'podium' }, ...rankList(S).map((r, i) =>
+      el('div', { class: 'row' },
+        el('div', { class: 'name' }, el('span', { class: 'rank' }, String(i + 1)), avatar(r.id, r.name), el('span', null, r.name)),
+        el('div', { class: 'pts' }, `${r.pts} pt${r.pts === 1 ? '' : 's'}`))));
+  }
+  function mysteryPanel(S) {
+    const H = me.h, n = revealedCount(H), stats = [];
+    for (let r = 0; r < n; r++) {
+      const t = H.order[r];
+      const voters = votersOf(S, t);
+      const hits = voters.filter(p => { const g = guessOf(p, r); return g && g.id === t; }).length;
+      if (voters.length) stats.push({ id: t, name: nameOf(S, t), pct: hits / voters.length, hits, total: voters.length });
+    }
+    if (!stats.length) return null;
+    stats.sort((x, y) => x.pct - y.pct);
+    const hard = stats[0], easy = stats[stats.length - 1];
+    return el('div', { class: 'panel' }, el('h3', null, 'Fun facts'),
+      el('div', { class: 'row' }, el('div', { class: 'name' }, avatar(hard.id, hard.name), el('span', null, `Biggest mystery: ${hard.name}`)), el('div', { class: 'pts' }, `${hard.hits}/${hard.total}`)),
+      el('div', { class: 'row' }, el('div', { class: 'name' }, avatar(easy.id, easy.name), el('span', null, `Open book: ${easy.name}`)), el('div', { class: 'pts' }, `${easy.hits}/${easy.total}`)));
+  }
+
+  // ---------- confetti on reveal ----------
+  function confetti() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = $('#confetti'), ctx = c.getContext('2d');
+    c.width = innerWidth; c.height = innerHeight; c.hidden = false;
+    const parts = Array.from({ length: 140 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, vx: (Math.random() - .5) * 3, vy: 2 + Math.random() * 4, s: 6 + Math.random() * 8, r: Math.random() * Math.PI, col: PALETTE[Math.floor(Math.random() * PALETTE.length)] }));
+    const t0 = performance.now();
+    (function frame(t) {
+      ctx.clearRect(0, 0, c.width, c.height);
+      for (const p of parts) { p.x += p.vx; p.y += p.vy; p.r += .1; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.col; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore(); }
+      if (t - t0 < 2600) requestAnimationFrame(frame); else { c.hidden = true; ctx.clearRect(0, 0, c.width, c.height); }
+    })(t0);
+  }
+  function maybeConfetti(S) {
+    const H = S.H;
+    if (!H || H.phase !== 'reveal') return;
+    const key = roundKey(H);
+    if (key === lastRevealKey) return;
+    lastRevealKey = key;
+    const g = guessOf({ presence: me }, H.round);
+    if (hostView || (g && g.id === H.order[H.round])) confetti();
+  }
+
+  // ---------- live room over a public relay ----------
+  // Every message is AES-GCM encrypted in the browser with a key derived from the room code. The relay keeps nothing
+  // (no retained messages) and only sees ciphertext on a topic it cannot link back to the code.
+  const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+  async function connectRoom(code) {
+    if (!window.mqtt || !window.crypto || !crypto.subtle) return null;
+    const enc = new TextEncoder(), dec = new TextDecoder();
+    const digest = async str => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(str)));
+    const key = await crypto.subtle.importKey('raw', await digest('whoswho-key:' + code), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    const base = 'whoswho/' + [...(await digest('whoswho-topic:' + code))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+    const b64 = u => { let x = ''; for (const c of u) x += String.fromCharCode(c); return btoa(x); };
+    const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+    const seal = async obj => {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj))));
+      const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+      return b64(out);
+    };
+    const open = async str => { const u = unb64(str); return JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, key, u.slice(12)))); };
+
+    const peerId = rand() + rand();
+    let mine = {}, myUpdated = Date.now(), isConn = false, fireT = null, chain = Promise.resolve();
+    const others = new Map(), peerHandlers = [], connHandlers = [];
+    const snap = () => [{ peer: peerId, isMe: true, sameTab: true, presence: mine, updatedAt: myUpdated }, ...others.values()];
+    const fire = () => { if (fireT) return; fireT = setTimeout(() => { fireT = null; const peers = snap(); peerHandlers.forEach(h => h({ peers })); }, 40); };
+
+    const client = mqtt.connect(BROKER, {
+      clientId: 'ww_' + peerId, clean: true, keepalive: 30, reconnectPeriod: 2000, connectTimeout: 10000,
+      will: { topic: `${base}/bye/${peerId}`, payload: '1', qos: 0, retain: false },
+    });
+    const publishState = () => { chain = chain.then(async () => { if (isConn) client.publish(`${base}/s/${peerId}`, await seal({ p: mine })); }).catch(() => {}); };
+    client.on('connect', () => {
+      isConn = true;
+      client.subscribe(`${base}/#`, () => { client.publish(`${base}/hello`, peerId); publishState(); });
+      connHandlers.forEach(h => h(true));
+    });
+    const down = () => { if (!isConn) return; isConn = false; connHandlers.forEach(h => h(false)); };
+    client.on('close', down); client.on('offline', down);
+    client.on('message', async (topic, payload) => {
+      const part = topic.slice(base.length + 1).split('/');
+      if (part[0] === 'hello') { if (String(payload) !== peerId) setTimeout(publishState, Math.random() * 400); return; }
+      if (part[1] === peerId || !part[1]) return;
+      if (part[0] === 'bye') { if (others.delete(part[1])) fire(); return; }
+      if (part[0] === 's') {
+        try {
+          const msg = await open(String(payload));
+          const prev = others.get(part[1]);
+          const same = prev && JSON.stringify(prev.presence) === JSON.stringify(msg.p);
+          others.set(part[1], { peer: part[1], isMe: false, sameTab: false, presence: msg.p || {}, updatedAt: same ? prev.updatedAt : Date.now(), seen: Date.now() });
+          if (!same) fire();
+        } catch { /* not for this room, or tampered: ignore */ }
+      }
+    });
+    // heartbeat: re-announce myself, forget people who went silent (phone locked, tab closed without a goodbye)
+    setInterval(() => {
+      publishState();
+      let changed = false;
+      for (const [id, p] of others) if (Date.now() - p.seen > 50000) { others.delete(id); changed = true; }
+      if (changed) fire();
+    }, 15000);
+    addEventListener('pagehide', () => { try { client.publish(`${base}/bye/${peerId}`, '1'); } catch {} });
+    addEventListener('pageshow', publishState);
+
+    return {
+      peers: snap,
+      connected: () => isConn,
+      onConnection(h) { connHandlers.push(h); setTimeout(() => h(isConn), 0); },
+      onPeers(h) { peerHandlers.push(h); fire(); },
+      async presence(patch) {
+        mine = { ...mine };
+        for (const [k, v] of Object.entries(patch)) { if (v === null) delete mine[k]; else mine[k] = v; }
+        myUpdated = Date.now();
+        publishState(); fire();
+      },
+    };
+  }
+
+  // ---------- duplicate identity ----------
+  // If another connection (a duplicated tab, or storage shared between tabs) carries my id, one of us takes a new one.
+  // The random wait lets only one side change, and lets the ghost of a reloaded tab leave by itself.
+  let twinTimer = null, regenCount = 0;
+  const findTwin = () => room.peers().find(p => !p.sameTab && p.presence && p.presence.id === me.id);
+  function checkTwin() {
+    if (!room) return;
+    if (!findTwin()) { if (twinTimer) { clearTimeout(twinTimer); twinTimer = null; } return; }
+    if (twinTimer || regenCount >= 3) return;
+    twinTimer = setTimeout(() => {
+      twinTimer = null;
+      if (!findTwin()) return;
+      regenCount++;
+      me.id = rand();
+      ss.set(K('id'), me.id);
+      hostView = false;
+      setMe({ n: me.n, a: me.a, ok: me.ok, g: {}, h: null });
+    }, 2500 + Math.random() * 2500);
+  }
+
+  // ---------- connection details (click the status) ----------
+  let showDiag = false;
+  function renderDiag() {
+    const box = $('#diag');
+    box.hidden = !showDiag;
+    if (!showDiag) return;
+    box.replaceChildren();
+    const lines = [`room code: ${CODE || '-'} · relay: ${room ? (room.connected() ? 'connected' : 'not connected') : 'not started'} · my id: ${me.id}`];
+    if (room) for (const p of room.peers()) {
+      const pr = p.presence || {};
+      lines.push(`${p.sameTab ? 'THIS DEVICE' : 'someone else'} · conn ${String(p.peer).slice(0, 6)} · id ${pr.id || '(none yet)'} · ${pr.n || '(no name)'} · ${pr.ok ? 'on the board' : 'filling in'}${pr.h ? ' · HOST' : ''}`);
+    }
+    for (const l of lines) box.append(el('div', null, l));
+  }
+  function setStatus(on, text) {
+    $('#dot').classList.toggle('on', on);
+    $('#statusText').textContent = text;
+    renderDiag();
+  }
+
+  // ---------- start ----------
+  $('#status').addEventListener('click', () => { showDiag = !showDiag; renderDiag(); });
+
+  if (!CODE) {
+    // No room in the link: offer to open one. The code is random and only exists in the link you share.
+    setStatus(false, 'No game room yet');
+    $('#app').append(el('div', { class: 'wrap stack' },
+      el('p', { class: 'eyebrow' }, 'New game'),
+      el('h1', null, 'Open a game room for your team'),
+      el('p', { class: 'lead' }, 'You get a private link. Anyone you send it to can join from their phone or laptop, with no account and nothing to install. Nothing is stored anywhere: when everyone closes the page, the game is gone.'),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn accent big', on: { click: () => { location.hash = 'r=' + rand() + rand(); } } }, 'Create a game room'))));
+    return;
+  }
+
+  render();
+  (async () => {
+    try { room = await connectRoom(CODE); } catch (e) { console.warn(e); room = null; }
+    if (!room) {
+      setStatus(false, 'Live sync could not start. Check your connection and reload.');
+      render();
+      return;
+    }
+    const liveText = () => { const n = room.peers().length; return `Live · ${n} ${n === 1 ? 'person' : 'people'} here`; };
+    room.onConnection(on => setStatus(on, on ? liveText() : 'Connecting…'));
+    room.onPeers(() => {
+      checkTwin();
+      const S = snapshot();
+      if (room.connected()) setStatus(true, liveText());
+      maybeConfetti(S);
+      render();
+    });
+    await room.presence({ id: me.id, n: me.n, a: me.a, ok: me.ok, g: me.g, h: me.h });
+    render();
+  })();
+})();
+</script>
+</body>
+</html>
