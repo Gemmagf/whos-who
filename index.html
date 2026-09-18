@@ -357,7 +357,8 @@
   const codeFromUrl = str => { const m = /[?#&]r=([a-z0-9-]+)/i.exec(String(str)); return m ? cleanCode(m[1]) : null; };
   const codeFrom = str => codeFromUrl(str) || (/^[a-z0-9\s-]+$/i.test(String(str)) ? cleanCode(str) : null);   // typed code or pasted link
   const CODE = codeFromUrl(location.search) || codeFromUrl(location.hash);
-  const roomLink = code => `${location.origin}${location.pathname}?r=${code}`;
+  let officeT = '';   // the office-mode token, encrypted with the room code, once there is one
+  const roomLink = code => `${location.origin}${location.pathname}?r=${code}${officeT ? '&t=' + officeT : ''}`;
   const prettyCode = code => (code.length === 8 ? code.slice(0, 4) + '-' + code.slice(4) : code).toUpperCase();
   const newCode = () => { const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (const n of crypto.getRandomValues(new Uint8Array(8))) c += abc[n % abc.length]; return c; };
   addEventListener('hashchange', () => location.reload());
@@ -540,7 +541,9 @@
           el('button', { class: 'link', on: { click: becomeHost } }, 'I\'m sharing the screen')));
       return;
     }
+    if (room && room.resumeOffice && !H.wiped) room.resumeOffice();
     if (H.phase === 'end') {
+      if (H.wiped && room && room.leaveOffice) room.leaveOffice();
       wrap.append(el('p', { class: 'eyebrow' }, 'Final'), el('h1', null, 'Leaderboard'), podium(S));
       return;
     }
@@ -693,6 +696,7 @@
           el('p', { class: 'eyebrow' }, 'Shared screen'),
           el('h1', null, 'Get on the board'),
           el('p', { class: 'lead' }, 'Send this link to the team. Everyone opens it on their own device, answers the questions and taps "Put me on the board". Once everybody is up, we start.'),
+          officePanel(),
           shareBox(),
           el('div', { class: 'panel' }, el('h3', null, 'How it works'),
             el('ol', { style: 'margin:0;padding-left:20px;color:var(--ink-2)' },
@@ -716,7 +720,8 @@
         el('h1', { style: 'font-size:clamp(34px,5vw,64px)' }, ranked[0] ? `${ranked[0].name} wins` : 'The end'),
         el('div', { class: 'stage' }, podium(S),
           el('div', { class: 'stack' }, mysteryPanel(S),
-            hostFooter(el('button', { class: 'btn ghost', on: { click: () => setHost({ phase: 'lobby', round: 0, order: [], k: 1, co: [] }) } }, 'New game')))));
+            room && room.office && room.office().on ? el('button', { class: 'btn primary', disabled: wipeState !== 'idle', on: { click: async () => { wipeState = 'busy'; setHost({ wiped: true }); await new Promise(r => setTimeout(r, 5000)); await room.wipe(); wipeState = 'done'; render(); } } }, wipeState === 'idle' ? 'End game and wipe office-mode messages' : wipeState === 'busy' ? 'Wiping…' : 'Office-mode messages wiped') : null,
+            hostFooter(el('button', { class: 'btn ghost', on: { click: () => { wipeState = 'idle'; room && room.resumeOffice && room.resumeOffice(); setHost({ phase: 'lobby', round: 0, order: [], k: 1, co: [], wiped: false }); } } }, 'New game')))));
       return;
     }
 
@@ -777,6 +782,33 @@
         el('button', { class: 'link', on: { click: () => setHost({ order: [...H.order, ...shuffle(newcomers.map(p => p.presence.id))] }) } }, 'Add to the game')) : null,
       hostFooter());
     wrap.append(el('div', { class: 'stage' }, left, right));
+  }
+
+  // Office mode: for teammates on locked-down office networks. The host pastes a GitHub token once.
+  const officeInput = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'github_pat_…', 'aria-label': 'GitHub token for office mode' });
+  let officeMsg = '', officeBusy = false, wipeState = 'idle';
+  function officePanel() {
+    if (!room || !room.office) return null;
+    const o = room.office();
+    if (o.on) return el('div', { class: 'notice' },
+      el('strong', null, o.up ? 'Office mode is on. ' : `Office mode can\'t connect${o.err ? ' (' + o.err + ')' : ''}. `),
+      o.up ? 'The link below now carries the key, so send this link, not an older one. Anyone who already joined with an old link should reopen with the new one. ' : '',
+      el('button', { class: 'link', on: { click: () => { room.forgetOffice(); officeMsg = 'Token removed from this device. Reload to turn office mode off here.'; render(); } } }, 'Forget the token on this device'),
+      officeMsg ? el('div', { class: 'muted' }, officeMsg) : null);
+    return el('details', { class: 'notice' },
+      el('summary', { style: 'cursor:pointer;font-weight:700;color:var(--ink)' }, 'Teammates on an office network that blocks the game? Turn on office mode'),
+      el('div', { class: 'stack', style: 'gap:10px;margin-top:12px' },
+        el('p', { style: 'margin:0' }, 'Office mode passes the encrypted messages through a private GitHub repository instead, a couple of seconds slower. It needs a GitHub token with "Issues: read and write" on ' + GH.owner + '/' + GH.repo + ' only. Paste it here once: it stays on this device and travels encrypted inside the room link.'),
+        el('div', { class: 'sharebox' }, officeInput,
+          el('button', { class: 'btn primary', type: 'button', disabled: officeBusy, on: { click: async () => {
+            const tok = officeInput.value.trim(); if (!tok) { officeMsg = 'Paste the token first.'; return render(); }
+            officeBusy = true; officeMsg = 'Checking…'; render();
+            const err = await room.enableOffice(tok).catch(() => 'Could not reach GitHub.');
+            officeBusy = false; officeMsg = err;
+            if (!err) { officeInput.value = ''; officeT = await room.officeParam(); }
+            render();
+          } } }, 'Turn on')),
+        officeMsg ? el('p', { class: 'muted', style: 'margin:0' }, officeMsg) : null));
   }
 
   function shareBox() {
@@ -862,10 +894,11 @@
   // (no retained messages) and only sees ciphertext on a topic it cannot link back to the code.
   // Two ways to reach the other players, used together:
   //  1. three public live relays (instant), one of them on the standard web port;
-  //  2. a plain-HTTPS mailbox that is checked about once a second, for locked-down office networks
-  //     where every live connection is blocked. Only active when HTTPS_RELAY holds a database address.
+  //  2. "office mode": a GitHub issue used as a mailbox over plain HTTPS, checked every couple of seconds, for locked-down
+  //     office networks where every live connection is blocked. Needs a GitHub token, which the host pastes once and
+  //     which then travels, encrypted with the room code, inside the room link.
   // Two people only need one way in common to see each other.
-  const HTTPS_RELAY = '';
+  const GH = { api: 'https://api.github.com', owner: 'Gemmagf', repo: 'whos-who-rooms' };
   const RELAYS = [
     { name: 'emqx', url: 'wss://broker.emqx.io:8084/mqtt' },
     { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
@@ -885,8 +918,8 @@
   async function connectRoom(code) {
     if (!window.crypto || !crypto.subtle) return null;
     const params = new URLSearchParams(location.search);
-    const only = params.get('relay');                                           // testing aid: ?relay=shiftr or ?relay=https
-    const dbUrl = (params.get('db') || HTTPS_RELAY).replace(/\/+$/, '');         // testing aid: ?db=http://localhost:9000
+    const only = params.get('relay');                                           // testing aid: ?relay=shiftr or ?relay=github
+    const ghApi = (params.get('ghapi') || GH.api).replace(/\/+$/, '');           // testing aid: ?ghapi=http://localhost:9000
     const enc = new TextEncoder(), dec = new TextDecoder();
     const digest = async str => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(str)));
     const key = await crypto.subtle.importKey('raw', await digest('whoswho-key:' + code), 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -923,7 +956,7 @@
 
     // ---- way 1: live relays ----
     const links = [];
-    let libState = only === 'https' ? 'off' : 'loading';
+    let libState = only === 'github' ? 'off' : 'loading';
     const send = (topic, payload, link) => { for (const l of link ? [link] : links) if (l.up) { try { l.client.publish(topic, payload); } catch {} } };
     const publishLive = link => { chain = chain.then(async () => send(`${base}/s/${peerId}`, await getSealed(), link)).catch(() => {}); };
     async function onMessage(link, topic, payload) {
@@ -951,49 +984,90 @@
     }
     if (libState === 'loading') loadSyncLibrary().then(ok => { libState = ok ? 'ok' : 'blocked'; if (ok) startLive(); connChanged(); });
 
-    // ---- way 2: plain-HTTPS mailbox (a Firebase-style JSON store addressed over REST) ----
-    // Holds only ciphertext, under a path derived from the room code. Everyone removes their own entry on leaving,
-    // and anyone removes entries that went silent.
-    const http = { on: !!dbUrl && (!only || only === 'https'), up: false, seen: new Map(), lastPut: -1, now: 0 };
-    const hurl = path => `${dbUrl}/ww/${roomHash}/${path}.json`;
-    const hreq = (method, path, body, keepalive) => fetch(hurl(path), { method, body: body === undefined ? undefined : JSON.stringify(body), keepalive: !!keepalive, cache: 'no-store' });
-    async function httpPublish() {
-      if (!http.on) return;
+    // ---- way 2: office mode, a GitHub issue as mailbox ----
+    // One issue per room (titled with a hash of the room code). Each player owns ONE comment holding their encrypted
+    // state and edits it in place. Leaving deletes the comment; deleting a comment also deletes its edit history.
+    const gh = { token: null, stopped: false, up: false, issue: null, myComment: ss.get(K('ghc')) || null, etag: null, lastPut: -1, busy: false, err: '', known: new Set() };
+    const ghReq = (method, path, { body, etag, keepalive } = {}) => fetch(`${ghApi}/repos/${GH.owner}/${GH.repo}${path}`, {
+      method, keepalive: !!keepalive, cache: 'no-store', body: body ? JSON.stringify(body) : undefined,
+      headers: { Authorization: 'Bearer ' + gh.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(etag ? { 'If-None-Match': etag } : {}) },
+    });
+    const ghFail = r => { gh.err = r.status === 401 ? 'token rejected' : r.status === 403 || r.status === 429 ? 'rate limited' : r.status === 404 ? 'token has no access to the rooms repo' : 'HTTP ' + r.status; throw new Error(gh.err); };
+    async function ghIssue() {
+      if (gh.issue) return gh.issue;
+      const title = 'room-' + roomHash;
+      const find = async () => {
+        const r = await ghReq('GET', '/issues?state=open&per_page=100'); if (!r.ok) ghFail(r);
+        const all = await r.json();
+        for (const i of all) if (String(i.title).startsWith('room-') && i.title !== title && Date.now() - Date.parse(i.updated_at) > 6 * 3600e3) sweep(i.number);   // rooms nobody closed
+        return all.filter(i => i.title === title).map(i => i.number).sort((a, b) => a - b)[0] || null;
+      };
+      let n = await find();
+      if (!n) { const r = await ghReq('POST', '/issues', { body: { title } }); if (!r.ok) ghFail(r); await new Promise(res => setTimeout(res, 1200)); n = (await find()) || (await r.json()).number; }   // if two people created one at once, all settle on the lowest
+      return (gh.issue = n);
+    }
+    async function sweep(n) {
       try {
-        if (http.lastPut !== seq) { const n = seq; await hreq('PUT', `s/${peerId}`, { c: await getSealed() }); http.lastPut = n; }
-        await hreq('PUT', `v/${peerId}`, { n: http.lastPut, t: { '.sv': 'timestamp' } });
+        const r = await ghReq('GET', `/issues/${n}/comments?per_page=100`);
+        for (const c of r.ok ? await r.json() : []) await ghReq('DELETE', `/issues/comments/${c.id}`).catch(() => {});
+        await ghReq('PATCH', `/issues/${n}`, { body: { state: 'closed' } });
       } catch {}
     }
-    async function httpPoll() {
-      if (!http.on) return;
+    async function ghLeave(keepalive) {
+      gh.stopped = true;
+      if (gh.token && gh.myComment) { const id = gh.myComment; gh.myComment = null; ss.del(K('ghc')); await ghReq('DELETE', `/issues/comments/${id}`, { keepalive }).catch(() => {}); }
+    }
+    async function ghPublish() {
+      if (!gh.token || gh.stopped || gh.busy || gh.lastPut === seq) return;
+      gh.busy = true;
       try {
-        const r = await hreq('GET', 'v');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const v = (await r.json()) || {};
-        if (!http.up) { http.up = true; connChanged(); }
-        http.now = Math.max(http.now, ...Object.values(v).map(e => Number(e && e.t) || 0));
-        for (const [who, e] of Object.entries(v)) {
-          if (who === peerId || !e) continue;
-          if (http.now - (Number(e.t) || 0) > 30000) { hreq('DELETE', `v/${who}`).catch(() => {}); hreq('DELETE', `s/${who}`).catch(() => {}); continue; }
-          const p = others.get(who);
-          if (p && p.n === Number(e.n)) { p.seen = Date.now(); continue; }
-          if (p && p.n > Number(e.n)) continue;
-          const sr = await hreq('GET', `s/${who}`); const sv = sr.ok ? await sr.json() : null;
-          if (sv && typeof sv.c === 'string') await gotState(who, sv.c);
+        const n = seq, body = { body: `${peerId}:${await getSealed()}` };
+        let r = gh.myComment ? await ghReq('PATCH', `/issues/comments/${gh.myComment}`, { body }) : null;
+        if (!r || r.status === 404) { r = await ghReq('POST', `/issues/${await ghIssue()}/comments`, { body }); if (r.ok) { gh.myComment = (await r.json()).id; ss.set(K('ghc'), gh.myComment); } }
+        if (!r.ok) ghFail(r);
+        gh.lastPut = n;
+      } catch {} finally { gh.busy = false; if (gh.token && !gh.stopped && gh.lastPut !== seq && !gh.err) setTimeout(ghPublish, 300); }
+    }
+    async function ghPoll() {
+      try {
+        const r = await ghReq('GET', `/issues/${await ghIssue()}/comments?per_page=100`, { etag: gh.etag });
+        if (r.status !== 304) {
+          if (!r.ok) ghFail(r);
+          gh.etag = r.headers.get('ETag');
+          const now = new Set(), list = await r.json();
+          // my own message vanished (wiped by mistake, or cleaned as stale): post it again
+          if (gh.myComment && !gh.busy && gh.lastPut !== -1 && !list.some(c => c.id === gh.myComment)) { gh.myComment = null; ss.del(K('ghc')); gh.lastPut = -1; }
+          for (const c of list) {
+            const cut = String(c.body || '').indexOf(':'); if (cut < 1) continue;
+            const who = c.body.slice(0, cut);
+            if (Date.now() - Date.parse(c.updated_at) > 3 * 3600e3) { ghReq('DELETE', `/issues/comments/${c.id}`).catch(() => {}); continue; }   // leftovers from a crashed tab
+            if (who === peerId) continue;
+            now.add(who); await gotState(who, c.body.slice(cut + 1));
+          }
+          for (const who of gh.known) if (!now.has(who)) fading(who);
+          gh.known = now;
         }
-        for (const who of http.seen.keys()) if (!(who in v)) fading(who);
-        http.seen = new Map(Object.keys(v).map(k => [k, 1]));
-      } catch { if (http.up) { http.up = false; connChanged(); } }
+        for (const who of gh.known) { const p = others.get(who); if (p) p.seen = Date.now(); }     // no heartbeats here: present while their comment exists
+        gh.err = ''; if (!gh.up) { gh.up = true; connChanged(); }
+      } catch { if (gh.up) { gh.up = false; connChanged(); } else renderDiag(); }
     }
-    if (http.on) {
-      (async function loop() { await httpPoll(); setTimeout(loop, document.hidden ? 2500 : 1100); })();
-      setInterval(httpPublish, 6000);
+    function startGithub(token) {
+      if (gh.token || !token || (only && only !== 'github')) return;
+      gh.token = token;
+      ghLoop();
     }
+    function ghLoop() {
+      (async function loop() { if (gh.stopped) { if (gh.up) { gh.up = false; connChanged(); } return; } await ghPoll(); await ghPublish(); setTimeout(loop, gh.err === 'rate limited' ? 60000 : document.hidden ? 5000 : 2000); })();
+    }
+    // the token arrives inside the room link, encrypted with the room code (or from this device, if the host saved it here)
+    const sealedToken = params.get('t');
+    if (sealedToken) { try { startGithub((await open(sealedToken.replace(/-/g, '+').replace(/_/g, '/'))).k); } catch {} }
+    if (!gh.token) { let saved = null; try { saved = localStorage.getItem('ww:ghtoken'); } catch {} if (saved) startGithub(saved); }
 
     // ---- shared ----
-    const anyUp = () => http.up || links.some(l => l.up);
+    const anyUp = () => gh.up || links.some(l => l.up);
     function connChanged() { const now = anyUp(); if (now !== wasConn) { wasConn = now; connHandlers.forEach(h => h(now)); } renderDiag(); }
-    const publishState = () => { publishLive(); httpPublish(); };
+    const publishState = () => { publishLive(); ghPublish(); };
 
     setInterval(() => {
       send(`${base}/a/${peerId}`, String(seq));
@@ -1003,7 +1077,7 @@
     }, 10000);
     addEventListener('pagehide', () => {
       send(`${base}/bye/${peerId}`, '1');
-      if (http.on) { hreq('DELETE', `v/${peerId}`, undefined, true).catch(() => {}); hreq('DELETE', `s/${peerId}`, undefined, true).catch(() => {}); http.lastPut = -1; }
+      if (gh.token && gh.myComment && !gh.stopped) { ghReq('DELETE', `/issues/comments/${gh.myComment}`, { keepalive: true }).catch(() => {}); gh.myComment = null; ss.del(K('ghc')); gh.lastPut = -1; }
     });
     addEventListener('pageshow', () => publishState());
 
@@ -1012,9 +1086,24 @@
       connected: anyUp,
       relays: () => [
         libState === 'ok' ? links.map(l => `${l.name} ${l.up ? 'up' : 'down'}`).join(' · ') : `live relays ${libState === 'loading' ? 'loading' : libState === 'off' ? 'off' : 'blocked by this network'}`,
-        `https ${http.on ? (http.up ? 'up' : 'down') : 'not set up'}`,
+        `office mode ${gh.token ? (gh.up ? 'up' : 'down' + (gh.err ? ' (' + gh.err + ')' : '')) : 'off'}`,
       ].join(' · '),
-      blocked: () => libState === 'blocked' && !http.on,
+      blocked: () => libState === 'blocked' && !gh.token,
+      office: () => ({ on: !!gh.token, up: gh.up, err: gh.err }),
+      // host only: check a pasted token, keep it on this device, and turn office mode on
+      async enableOffice(token) {
+        const r = await fetch(`${ghApi}/repos/${GH.owner}/${GH.repo}`, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+        if (!r.ok) return r.status === 401 ? 'GitHub rejected this token.' : 'This token can\'t reach the rooms repository. Give it access to ' + GH.owner + '/' + GH.repo + ' with Issues: read and write.';
+        try { localStorage.setItem('ww:ghtoken', token); } catch {}
+        startGithub(token); return '';
+      },
+      forgetOffice() { try { localStorage.removeItem('ww:ghtoken'); } catch {} },
+      // the link others need: carries the token encrypted with the room code, never in the clear
+      async officeParam() { return gh.token ? (await seal({ k: gh.token })).replace(/\+/g, '-').replace(/\//g, '_') : ''; },
+      leaveOffice: () => { if (!gh.stopped) ghLeave(false); },
+      resumeOffice() { if (!gh.stopped || !gh.token) return; gh.stopped = false; gh.issue = null; gh.etag = null; gh.lastPut = -1; gh.known = new Set(); ghLoop(); },
+      // host only, at the end: remove every message of this room and close its issue
+      async wipe() { if (!gh.token || !gh.issue) return; await ghLeave(false); await sweep(gh.issue); },
       onConnection(h) { connHandlers.push(h); setTimeout(() => h(anyUp()), 0); },
       onPeers(h) { peerHandlers.push(h); fire(); },
       async presence(patch) {
@@ -1116,6 +1205,7 @@
       render();
     });
     await room.presence({ id: me.id, n: me.n, a: me.a, ok: me.ok, g: me.g, h: me.h });
+    officeT = await room.officeParam();
     render();
   })();
 })();

@@ -77,6 +77,15 @@
       done(true, (cors ? 'HTTP ' + r.status : 'reachable') + ' in ' + (Date.now() - t0) + ' ms');
     } catch (e) { done(false, String(e.message || e)); }
   }
+  // No token is sent, so GitHub itself answers 200, 401 or 404. Any answer from GitHub means the network let the request through.
+  async function testMethod(name, method, url, body) {
+    const done = row(name); const t0 = Date.now();
+    try {
+      const r = await Promise.race([fetch(url, { method, cache: 'no-store', body: body ? JSON.stringify(body) : undefined, headers: { Accept: 'application/vnd.github+json' } }), timeout(10000)]);
+      const fromGithub = r.headers.get('x-github-request-id') !== null || [200, 401, 403, 404].includes(r.status);
+      done(fromGithub, 'GitHub answered HTTP ' + r.status + ' in ' + (Date.now() - t0) + ' ms');
+    } catch (e) { done(false, String(e.message || e)); }
+  }
   async function testJson(name, url) {
     const done = row(name); const t0 = Date.now();
     try {
@@ -120,6 +129,9 @@
       testWs('Any WebSocket on port 443 (postman-echo)', 'wss://ws.postman-echo.com/raw'),
       testWs('PeerJS signalling WebSocket (port 443)', 'wss://0.peerjs.com/peerjs?key=peerjs&id=check' + Math.random().toString(36).slice(2) + '&token=x'),
       testFetch('Plain HTTPS to GitHub API', 'https://api.github.com/zen', true),
+      testMethod('Writing to GitHub: POST', 'POST', 'https://api.github.com/markdown', { text: 'connection check' }),
+      testMethod('Writing to GitHub: PATCH', 'PATCH', 'https://api.github.com/repos/Gemmagf/whos-who/issues/comments/1', { body: 'x' }),
+      testMethod('Writing to GitHub: DELETE', 'DELETE', 'https://api.github.com/repos/Gemmagf/whos-who/issues/comments/1'),
       testFetch('Plain HTTPS to Firebase (Google)', 'https://firebase.googleapis.com/'),
       testFetch('Plain HTTPS to Firebase database host', 'https://whoswho-check-default-rtdb.europe-west1.firebasedatabase.app/.json'),
       testFetch('Plain HTTPS to Google Apps Script', 'https://script.google.com/'),
