@@ -268,6 +268,7 @@
     .brand { font-size: 17px; gap: 7px; white-space: nowrap; }
     .rules-btn { padding: 6px 11px; font-size: 13px; }
   }
+  .roomcode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; color: var(--ink); }
   .sharebox { display: flex; gap: 8px; align-items: stretch; }
   .sharebox input { flex: 1; min-width: 0; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 15px; }
   canvas#confetti { position: fixed; inset: 0; pointer-events: none; width: 100%; height: 100%; }
@@ -352,7 +353,14 @@
   const rand = () => Math.random().toString(36).slice(2, 10);
 
   // The room code lives in the link after the #, which browsers never send to any server.
-  const CODE = (/^#r=([a-z0-9]{8,40})$/i.exec(location.hash) || [])[1] || null;
+  // Room code: read from ?r= (survives every chat and email tool) or from the older #r= form.
+  const cleanCode = str => { const c = String(str || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return c.length >= 6 && c.length <= 40 ? c : null; };
+  const codeFromUrl = str => { const m = /[?#&]r=([a-z0-9-]+)/i.exec(String(str)); return m ? cleanCode(m[1]) : null; };
+  const codeFrom = str => codeFromUrl(str) || (/^[a-z0-9\s-]+$/i.test(String(str)) ? cleanCode(str) : null);   // typed code or pasted link
+  const CODE = codeFromUrl(location.search) || codeFromUrl(location.hash);
+  const roomLink = code => `${location.origin}${location.pathname}?r=${code}`;
+  const prettyCode = code => (code.length === 8 ? code.slice(0, 4) + '-' + code.slice(4) : code).toUpperCase();
+  const newCode = () => { const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (const n of crypto.getRandomValues(new Uint8Array(8))) c += abc[n % abc.length]; return c; };
   addEventListener('hashchange', () => location.reload());
   const K = name => `ww:${CODE}:${name}`;
 
@@ -773,13 +781,16 @@
   }
 
   function shareBox() {
-    const inp = el('input', { type: 'text', readonly: '', value: location.href, 'aria-label': 'Game link', on: { focus: e => e.target.select() } });
+    const link = roomLink(CODE);
+    const inp = el('input', { type: 'text', readonly: '', value: link, 'aria-label': 'Game link', on: { focus: e => e.target.select() } });
     const btn = el('button', { class: 'btn primary', type: 'button', on: { click: async () => {
-      try { await navigator.clipboard.writeText(location.href); } catch { inp.select(); document.execCommand('copy'); }
+      try { await navigator.clipboard.writeText(link); } catch { inp.select(); document.execCommand('copy'); }
       btn.textContent = 'Copied';
       setTimeout(() => { btn.textContent = 'Copy link'; }, 1500);
     } } }, 'Copy link');
-    return el('div', { class: 'sharebox' }, inp, btn);
+    return el('div', { class: 'stack', style: 'gap:8px' },
+      el('div', { class: 'sharebox' }, inp, btn),
+      el('p', { class: 'muted', style: 'margin:0' }, 'Link not working for someone? They can open ', el('strong', null, location.host + location.pathname), ' and type the room code ', el('strong', { class: 'roomcode' }, prettyCode(CODE)), '.'));
   }
 
   function hostFooter(...extra) {
@@ -951,7 +962,7 @@
     box.hidden = !showDiag;
     if (!showDiag) return;
     box.replaceChildren();
-    const lines = [`room code: ${CODE || '-'} · relay: ${room ? (room.connected() ? 'connected' : 'not connected') : 'not started'} · my id: ${me.id}`];
+    const lines = [`room code: ${CODE ? prettyCode(CODE) : '-'} · relay: ${room ? (room.connected() ? 'connected' : 'not connected') : 'not started'} · my id: ${me.id}`];
     if (room) for (const p of room.peers()) {
       const pr = p.presence || {};
       lines.push(`${p.sameTab ? 'THIS DEVICE' : 'someone else'} · conn ${String(p.peer).slice(0, 6)} · id ${pr.id || '(none yet)'} · ${pr.n || '(no name)'} · ${pr.ok ? 'on the board' : 'filling in'}${pr.h ? ' · HOST' : ''}`);
@@ -971,14 +982,22 @@
   $('#rulesDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
   if (!CODE) {
-    // No room in the link: offer to open one. The code is random and only exists in the link you share.
     setStatus(false, 'No game room yet');
+    const codeIn = el('input', { type: 'text', id: 'joinCode', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'Room code or the full link', 'aria-label': 'Room code or link' });
+    const msg = el('p', { class: 'muted', role: 'status', style: 'margin:0' });
+    const join = () => { const c = codeFrom(codeIn.value.trim()); if (!c) { msg.textContent = 'That doesn\'t look like a room code. Ask your host for the code shown on their screen.'; return; } location.href = roomLink(c); };
     $('#app').append(el('div', { class: 'wrap stack' },
-      el('p', { class: 'eyebrow' }, 'New game'),
-      el('h1', null, 'Open a game room for your team'),
-      el('p', { class: 'lead' }, 'You get a private link. Anyone you send it to can join from their phone or laptop, with no account and nothing to install. Nothing is stored anywhere: when everyone closes the page, the game is gone.'),
+      el('p', { class: 'eyebrow' }, 'Join a game'),
+      el('h1', null, 'Got a room code from your host?'),
+      el('p', { class: 'lead' }, 'If your link brought you here, the room code got lost on the way. Type the code your host sees on their screen, or paste the full link.'),
+      el('form', { style: 'margin:0', on: { submit: e => { e.preventDefault(); join(); } } },
+        el('div', { class: 'sharebox' }, codeIn, el('button', { class: 'btn primary', type: 'submit' }, 'Join'))),
+      msg,
+      el('hr', { style: 'width:100%;border:none;border-top:1px solid var(--line);margin:10px 0' }),
+      el('p', { class: 'eyebrow' }, 'Hosting?'),
+      el('p', { class: 'lead' }, 'Open a new room and send the link to your team. No accounts, nothing to install, and nothing is stored: when everyone closes the page, the game is gone.'),
       el('div', { class: 'actions' },
-        el('button', { class: 'btn accent big', on: { click: () => { location.hash = 'r=' + rand() + rand(); } } }, 'Create a game room'))));
+        el('button', { class: 'btn accent big', on: { click: () => { location.href = roomLink(newCode()); } } }, 'Create a new game room'))));
     return;
   }
 
