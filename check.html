@@ -77,6 +77,14 @@
       done(true, (cors ? 'HTTP ' + r.status : 'reachable') + ' in ' + (Date.now() - t0) + ' ms');
     } catch (e) { done(false, String(e.message || e)); }
   }
+  async function testJson(name, url) {
+    const done = row(name); const t0 = Date.now();
+    try {
+      const r = await Promise.race([fetch(url, { cache: 'no-store' }), timeout(10000)]);
+      const v = await r.json();
+      done(typeof v === 'number', 'HTTP ' + r.status + ', value ' + JSON.stringify(v).slice(0, 20) + ' in ' + (Date.now() - t0) + ' ms');
+    } catch (e) { done(false, String(e.message || e)); }
+  }
   function testSse(name, url) {
     const done = row(name);
     return new Promise(res => {
@@ -115,6 +123,8 @@
       testFetch('Plain HTTPS to Firebase (Google)', 'https://firebase.googleapis.com/'),
       testFetch('Plain HTTPS to Firebase database host', 'https://whoswho-check-default-rtdb.europe-west1.firebasedatabase.app/.json'),
       testFetch('Plain HTTPS to Google Apps Script', 'https://script.google.com/'),
+      testJson('Real data from a Google Firebase database (read)', 'https://hacker-news.firebaseio.com/v0/maxitem.json'),
+      testSse('Streaming from a Google Firebase database', 'https://hacker-news.firebaseio.com/v0/maxitem.json'),
       testFetch('Plain HTTPS to ntfy.sh', 'https://ntfy.sh/v1/health', true),
       testSse('Streaming HTTPS (server-sent events, ntfy.sh)', 'https://ntfy.sh/whoswho-check-' + Math.random().toString(36).slice(2) + '/sse'),
       testRtc('Peer-to-peer (WebRTC through STUN)'),

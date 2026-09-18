@@ -860,15 +860,17 @@
   // ---------- live room over a public relay ----------
   // Every message is AES-GCM encrypted in the browser with a key derived from the room code. The relay keeps nothing
   // (no retained messages) and only sees ciphertext on a topic it cannot link back to the code.
-  // Three independent public relays at once. Two people only need ONE in common to see each other, and the last one
-  // uses the standard web port (443), which office firewalls and VPNs do not block.
+  // Two ways to reach the other players, used together:
+  //  1. three public live relays (instant), one of them on the standard web port;
+  //  2. a plain-HTTPS mailbox that is checked about once a second, for locked-down office networks
+  //     where every live connection is blocked. Only active when HTTPS_RELAY holds a database address.
+  // Two people only need one way in common to see each other.
+  const HTTPS_RELAY = '';
   const RELAYS = [
     { name: 'emqx', url: 'wss://broker.emqx.io:8084/mqtt' },
     { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
     { name: 'shiftr', url: 'wss://public.cloud.shiftr.io:443', username: 'public', password: 'public' },
   ];
-  // the sync library comes from one CDN, or from a second one if the network blocks the first
-  let libError = '';
   function loadSyncLibrary() {
     const urls = ['https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'];
     const tryOne = url => new Promise(res => {
@@ -877,15 +879,19 @@
       setTimeout(() => res(!!window.mqtt), 12000);
       document.head.append(sc);
     });
-    return (async () => { for (const u of urls) if (window.mqtt || await tryOne(u)) return; libError = 'sync library blocked'; })();
+    return (async () => { for (const u of urls) if (window.mqtt || await tryOne(u)) return true; return false; })();
   }
+
   async function connectRoom(code) {
-    await loadSyncLibrary();
-    if (!window.mqtt || !window.crypto || !crypto.subtle) return null;
+    if (!window.crypto || !crypto.subtle) return null;
+    const params = new URLSearchParams(location.search);
+    const only = params.get('relay');                                           // testing aid: ?relay=shiftr or ?relay=https
+    const dbUrl = (params.get('db') || HTTPS_RELAY).replace(/\/+$/, '');         // testing aid: ?db=http://localhost:9000
     const enc = new TextEncoder(), dec = new TextDecoder();
     const digest = async str => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(str)));
     const key = await crypto.subtle.importKey('raw', await digest('whoswho-key:' + code), 'AES-GCM', false, ['encrypt', 'decrypt']);
-    const base = 'whoswho/' + [...(await digest('whoswho-topic:' + code))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+    const roomHash = [...(await digest('whoswho-topic:' + code))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+    const base = 'whoswho/' + roomHash;
     const b64 = u => { let x = ''; for (const c of u) x += String.fromCharCode(c); return btoa(x); };
     const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
     const seal = async obj => {
@@ -901,51 +907,93 @@
     const others = new Map(), peerHandlers = [], connHandlers = [];
     const snap = () => [{ peer: peerId, isMe: true, sameTab: true, presence: mine, updatedAt: myUpdated }, ...others.values()];
     const fire = () => { if (fireT) return; fireT = setTimeout(() => { fireT = null; const peers = snap(); peerHandlers.forEach(h => h({ peers })); }, 40); };
+    const getSealed = async () => { if (!sealed) sealed = await seal({ p: mine, n: seq }); return sealed; };
 
-    const only = new URLSearchParams(location.search).get('relay');          // testing aid: ?relay=shiftr
-    const links = RELAYS.filter(r => !only || r.name === only).map(r => ({ ...r, up: false, client: null }));
-    const anyUp = () => links.some(l => l.up);
-    const connChanged = () => { const now = anyUp(); if (now !== wasConn) { wasConn = now; connHandlers.forEach(h => h(now)); } renderDiag(); };
+    // someone's state arrived, by whichever way: keep the newest
+    async function gotState(who, text) {
+      try {
+        const msg = await open(text), prev = others.get(who), n = Number(msg.n) || 0;
+        if (prev && n < prev.n) return;
+        const same = prev && prev.n === n;
+        others.set(who, { ...(prev || {}), peer: who, isMe: false, sameTab: false, presence: msg.p || {}, n, updatedAt: same ? prev.updatedAt : Date.now(), seen: Date.now() });
+        if (!same) fire();
+      } catch { /* not for this room, or tampered: ignore */ }
+    }
+    const fading = who => { const p = others.get(who); if (p) p.seen = Math.min(p.seen, Date.now() - 25000); };   // gone in ~10 s unless heard again
+
+    // ---- way 1: live relays ----
+    const links = [];
+    let libState = only === 'https' ? 'off' : 'loading';
     const send = (topic, payload, link) => { for (const l of link ? [link] : links) if (l.up) { try { l.client.publish(topic, payload); } catch {} } };
-
-    // full state goes out when it changes or when someone asks; in between, only a tiny "still here" beat
-    const publishState = link => { chain = chain.then(async () => { if (!sealed) sealed = await seal({ p: mine, n: seq }); send(`${base}/s/${peerId}`, sealed, link); }).catch(() => {}); };
-
+    const publishLive = link => { chain = chain.then(async () => send(`${base}/s/${peerId}`, await getSealed(), link)).catch(() => {}); };
     async function onMessage(link, topic, payload) {
       const part = topic.slice(base.length + 1).split('/'), kind = part[0], who = part[1], text = String(payload);
-      if (kind === 'hello') { if (text !== peerId) setTimeout(() => publishState(link), Math.random() * 400); return; }
-      if (kind === 'q') { if (who === peerId) publishState(link); return; }
+      if (kind === 'hello') { if (text !== peerId) setTimeout(() => publishLive(link), Math.random() * 400); return; }
+      if (kind === 'q') { if (who === peerId) publishLive(link); return; }
       if (!who || who === peerId) return;
-      if (kind === 'bye') { const p = others.get(who); if (p) p.seen = Math.min(p.seen, Date.now() - 25000); return; }   // gone unless another relay still hears them
-      if (kind === 'a') {
-        const p = others.get(who);
-        if (p && p.n === Number(text)) p.seen = Date.now(); else send(`${base}/q/${who}`, '1', link);
-        return;
+      if (kind === 'bye') return fading(who);
+      if (kind === 'a') { const p = others.get(who); if (p && p.n === Number(text)) p.seen = Date.now(); else send(`${base}/q/${who}`, '1', link); return; }
+      if (kind === 's') return gotState(who, text);
+    }
+    function startLive() {
+      for (const r of RELAYS.filter(r => !only || r.name === only)) {
+        const link = { ...r, up: false, client: null }; links.push(link);
+        const c = link.client = mqtt.connect(link.url, {
+          clientId: 'ww_' + peerId + '_' + link.name, clean: true, keepalive: 30, reconnectPeriod: 3000, connectTimeout: 10000,
+          username: link.username, password: link.password,
+          will: { topic: `${base}/bye/${peerId}`, payload: '1', qos: 0, retain: false },
+        });
+        c.on('connect', () => c.subscribe(`${base}/#`, () => { link.up = true; send(`${base}/hello`, peerId, link); publishLive(link); connChanged(); }));
+        const down = () => { if (link.up) { link.up = false; connChanged(); } };
+        c.on('close', down); c.on('offline', down); c.on('error', () => {});
+        c.on('message', (topic, payload) => onMessage(link, topic, payload));
       }
-      if (kind === 's') {
-        try {
-          const msg = await open(text), prev = others.get(who), n = Number(msg.n) || 0;
-          if (prev && n < prev.n) return;
-          const same = prev && prev.n === n;
-          others.set(who, { peer: who, isMe: false, sameTab: false, presence: msg.p || {}, n, updatedAt: same ? prev.updatedAt : Date.now(), seen: Date.now() });
-          if (!same) fire();
-        } catch { /* not for this room, or tampered: ignore */ }
-      }
+    }
+    if (libState === 'loading') loadSyncLibrary().then(ok => { libState = ok ? 'ok' : 'blocked'; if (ok) startLive(); connChanged(); });
+
+    // ---- way 2: plain-HTTPS mailbox (a Firebase-style JSON store addressed over REST) ----
+    // Holds only ciphertext, under a path derived from the room code. Everyone removes their own entry on leaving,
+    // and anyone removes entries that went silent.
+    const http = { on: !!dbUrl && (!only || only === 'https'), up: false, seen: new Map(), lastPut: -1, now: 0 };
+    const hurl = path => `${dbUrl}/ww/${roomHash}/${path}.json`;
+    const hreq = (method, path, body, keepalive) => fetch(hurl(path), { method, body: body === undefined ? undefined : JSON.stringify(body), keepalive: !!keepalive, cache: 'no-store' });
+    async function httpPublish() {
+      if (!http.on) return;
+      try {
+        if (http.lastPut !== seq) { const n = seq; await hreq('PUT', `s/${peerId}`, { c: await getSealed() }); http.lastPut = n; }
+        await hreq('PUT', `v/${peerId}`, { n: http.lastPut, t: { '.sv': 'timestamp' } });
+      } catch {}
+    }
+    async function httpPoll() {
+      if (!http.on) return;
+      try {
+        const r = await hreq('GET', 'v');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const v = (await r.json()) || {};
+        if (!http.up) { http.up = true; connChanged(); }
+        http.now = Math.max(http.now, ...Object.values(v).map(e => Number(e && e.t) || 0));
+        for (const [who, e] of Object.entries(v)) {
+          if (who === peerId || !e) continue;
+          if (http.now - (Number(e.t) || 0) > 30000) { hreq('DELETE', `v/${who}`).catch(() => {}); hreq('DELETE', `s/${who}`).catch(() => {}); continue; }
+          const p = others.get(who);
+          if (p && p.n === Number(e.n)) { p.seen = Date.now(); continue; }
+          if (p && p.n > Number(e.n)) continue;
+          const sr = await hreq('GET', `s/${who}`); const sv = sr.ok ? await sr.json() : null;
+          if (sv && typeof sv.c === 'string') await gotState(who, sv.c);
+        }
+        for (const who of http.seen.keys()) if (!(who in v)) fading(who);
+        http.seen = new Map(Object.keys(v).map(k => [k, 1]));
+      } catch { if (http.up) { http.up = false; connChanged(); } }
+    }
+    if (http.on) {
+      (async function loop() { await httpPoll(); setTimeout(loop, document.hidden ? 2500 : 1100); })();
+      setInterval(httpPublish, 6000);
     }
 
-    for (const link of links) {
-      const c = link.client = mqtt.connect(link.url, {
-        clientId: 'ww_' + peerId + '_' + link.name, clean: true, keepalive: 30, reconnectPeriod: 3000, connectTimeout: 10000,
-        username: link.username, password: link.password,
-        will: { topic: `${base}/bye/${peerId}`, payload: '1', qos: 0, retain: false },
-      });
-      c.on('connect', () => {
-        c.subscribe(`${base}/#`, () => { link.up = true; send(`${base}/hello`, peerId, link); publishState(link); connChanged(); });
-      });
-      const down = () => { if (link.up) { link.up = false; connChanged(); } };
-      c.on('close', down); c.on('offline', down); c.on('error', () => {});
-      c.on('message', (topic, payload) => onMessage(link, topic, payload));
-    }
+    // ---- shared ----
+    const anyUp = () => http.up || links.some(l => l.up);
+    function connChanged() { const now = anyUp(); if (now !== wasConn) { wasConn = now; connHandlers.forEach(h => h(now)); } renderDiag(); }
+    const publishState = () => { publishLive(); httpPublish(); };
 
     setInterval(() => {
       send(`${base}/a/${peerId}`, String(seq));
@@ -953,13 +1001,20 @@
       for (const [id, p] of others) if (Date.now() - p.seen > 35000) { others.delete(id); changed = true; }
       if (changed) fire();
     }, 10000);
-    addEventListener('pagehide', () => send(`${base}/bye/${peerId}`, '1'));
+    addEventListener('pagehide', () => {
+      send(`${base}/bye/${peerId}`, '1');
+      if (http.on) { hreq('DELETE', `v/${peerId}`, undefined, true).catch(() => {}); hreq('DELETE', `s/${peerId}`, undefined, true).catch(() => {}); http.lastPut = -1; }
+    });
     addEventListener('pageshow', () => publishState());
 
     return {
       peers: snap,
       connected: anyUp,
-      relays: () => links.map(l => `${l.name} ${l.up ? 'up' : 'down'}`).join(' · '),
+      relays: () => [
+        libState === 'ok' ? links.map(l => `${l.name} ${l.up ? 'up' : 'down'}`).join(' · ') : `live relays ${libState === 'loading' ? 'loading' : libState === 'off' ? 'off' : 'blocked by this network'}`,
+        `https ${http.on ? (http.up ? 'up' : 'down') : 'not set up'}`,
+      ].join(' · '),
+      blocked: () => libState === 'blocked' && !http.on,
       onConnection(h) { connHandlers.push(h); setTimeout(() => h(anyUp()), 0); },
       onPeers(h) { peerHandlers.push(h); fire(); },
       async presence(patch) {
@@ -1042,7 +1097,7 @@
   (async () => {
     try { room = await connectRoom(CODE); } catch (e) { console.warn(e); room = null; }
     if (!room) {
-      setStatus(false, libError ? 'This network blocks the game\'s sync library. Open the connection check to see details.' : 'Live sync could not start. Check your connection and reload.');
+      setStatus(false, 'Live sync could not start. Check your connection and reload.');
       render();
       return;
     }
@@ -1051,7 +1106,7 @@
     room.onConnection(on => {
       clearTimeout(offlineT);
       setStatus(on, on ? liveText() : 'Connecting…');
-      if (!on) offlineT = setTimeout(() => { if (!room.connected()) setStatus(false, 'Can\'t reach the live sync. Try another network, or turn off the VPN.'); }, 15000);
+      if (!on) offlineT = setTimeout(() => { if (!room.connected()) setStatus(false, room.blocked() ? 'This network blocks live sync. Join from your phone or another network.' : 'Can\'t reach the live sync. Try another network, or turn off the VPN.'); }, 15000);
     });
     room.onPeers(() => {
       checkTwin();
