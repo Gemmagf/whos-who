@@ -1049,7 +1049,7 @@
         }
         for (const who of gh.known) { const p = others.get(who); if (p) p.seen = Date.now(); }     // no heartbeats here: present while their comment exists
         gh.err = ''; if (!gh.up) { gh.up = true; connChanged(); }
-      } catch { if (gh.up) { gh.up = false; connChanged(); } else renderDiag(); }
+      } catch { if (!gh.err) gh.err = 'this network blocks GitHub requests'; if (gh.up) { gh.up = false; connChanged(); } else renderDiag(); }
     }
     function startGithub(token) {
       if (gh.token || !token || (only && only !== 'github')) return;
@@ -1089,7 +1089,8 @@
         `office mode ${gh.token ? (gh.up ? 'up' : 'down' + (gh.err ? ' (' + gh.err + ')' : '')) : 'off'}`,
       ].join(' · '),
       blocked: () => libState === 'blocked' && !gh.token,
-      office: () => ({ on: !!gh.token, up: gh.up, err: gh.err }),
+      office: () => ({ on: !!gh.token, up: gh.up, err: gh.err, linkHadKey: !!sealedToken }),
+      liveState: () => libState,
       // host only: check a pasted token, keep it on this device, and turn office mode on
       async enableOffice(token) {
         const r = await fetch(`${ghApi}/repos/${GH.owner}/${GH.repo}`, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' }, cache: 'no-store' });
@@ -1195,7 +1196,15 @@
     room.onConnection(on => {
       clearTimeout(offlineT);
       setStatus(on, on ? liveText() : 'Connecting…');
-      if (!on) offlineT = setTimeout(() => { if (!room.connected()) setStatus(false, room.blocked() ? 'This network blocks live sync. Join from your phone or another network.' : 'Can\'t reach the live sync. Try another network, or turn off the VPN.'); }, 15000);
+      const explain = () => {
+        if (room.connected()) return;
+        const o = room.office(), live = room.liveState();
+        setStatus(false,
+          o.on ? `Office mode can't connect: ${o.err || 'still trying'}. Click here for details.`
+          : live === 'blocked' || live === 'loading' ? (hostView ? 'This network blocks live sync. Turn on office mode below, or host from another network.' : 'This network blocks live sync, and this link has no office-mode key. Ask the host to turn on office mode and send you the new link.')
+          : 'Can\'t reach the live sync. Try another network, or turn off the VPN.');
+      };
+      if (!on) { offlineT = setTimeout(explain, 15000); setTimeout(explain, 32000); }
     });
     room.onPeers(() => {
       checkTwin();
