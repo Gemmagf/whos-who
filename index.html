@@ -294,7 +294,6 @@
 </dialog>
 <canvas id="confetti" hidden></canvas>
 
-<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 (() => {
   'use strict';
@@ -868,7 +867,20 @@
     { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
     { name: 'shiftr', url: 'wss://public.cloud.shiftr.io:443', username: 'public', password: 'public' },
   ];
+  // the sync library comes from one CDN, or from a second one if the network blocks the first
+  let libError = '';
+  function loadSyncLibrary() {
+    const urls = ['https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'];
+    const tryOne = url => new Promise(res => {
+      const sc = document.createElement('script'); sc.src = url;
+      sc.onload = () => res(!!window.mqtt); sc.onerror = () => res(false);
+      setTimeout(() => res(!!window.mqtt), 12000);
+      document.head.append(sc);
+    });
+    return (async () => { for (const u of urls) if (window.mqtt || await tryOne(u)) return; libError = 'sync library blocked'; })();
+  }
   async function connectRoom(code) {
+    await loadSyncLibrary();
     if (!window.mqtt || !window.crypto || !crypto.subtle) return null;
     const enc = new TextEncoder(), dec = new TextDecoder();
     const digest = async str => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(str)));
@@ -992,6 +1004,7 @@
       lines.push(`${p.sameTab ? 'THIS DEVICE' : 'someone else'} · conn ${String(p.peer).slice(0, 6)} · id ${pr.id || '(none yet)'} · ${pr.n || '(no name)'} · ${pr.ok ? 'on the board' : 'filling in'}${pr.h ? ' · HOST' : ''}`);
     }
     for (const l of lines) box.append(el('div', null, l));
+    box.append(el('div', null, el('a', { href: 'check.html', target: '_blank', rel: 'noopener', style: 'color:inherit' }, 'Run the connection check')));
   }
   function setStatus(on, text) {
     $('#dot').classList.toggle('on', on);
@@ -1029,7 +1042,7 @@
   (async () => {
     try { room = await connectRoom(CODE); } catch (e) { console.warn(e); room = null; }
     if (!room) {
-      setStatus(false, 'Live sync could not start. Check your connection and reload.');
+      setStatus(false, libError ? 'This network blocks the game\'s sync library. Open the connection check to see details.' : 'Live sync could not start. Check your connection and reload.');
       render();
       return;
     }

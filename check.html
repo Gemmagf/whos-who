@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Who's Who · Connection check</title>
+<style>
+  :root { --bg: #eef1f6; --surface: #fff; --ink: #161a24; --ink-2: #4b5364; --line: #cfd5e0; --ok: #1f9e5c; --bad: #e4553f; --wait: #8a91a0; --accent: #ffd23f; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #10141f; --surface: #1b2130; --ink: #f2f0ea; --ink-2: #b8bcc7; --line: #333c50; --ok: #5bd48b; --bad: #ff7a66; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; display: grid; gap: 18px; }
+  h1 { font-size: 28px; line-height: 1.1; margin: 0; }
+  p { margin: 0; color: var(--ink-2); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
+  td.res { font-weight: 700; white-space: nowrap; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .wait { color: var(--wait); }
+  td.detail { color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+  .scroll { overflow-x: auto; }
+  button { font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 999px; border: none; background: var(--accent); color: #1b1400; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  textarea { width: 100%; height: 190px; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Connection check</h1>
+  <p>Open this page in the environment where the game does not sync. It tries each way the game could connect and shows what your network allows. It takes about 15 seconds and sends nothing about you anywhere.</p>
+  <div class="scroll"><table><thead><tr><th>Test</th><th>Result</th><th>Detail</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div><button id="copy" disabled>Copy results</button></div>
+  <textarea id="out" readonly aria-label="Results as text"></textarea>
+</main>
+<script>
+(() => {
+  const rows = document.getElementById('rows'), out = document.getElementById('out'), copy = document.getElementById('copy');
+  const results = [];
+  function row(name) {
+    const tr = document.createElement('tr'), a = document.createElement('td'), b = document.createElement('td'), c = document.createElement('td');
+    a.textContent = name; b.className = 'res wait'; b.textContent = '…'; c.className = 'detail';
+    tr.append(a, b, c); rows.append(tr);
+    const rec = { name, ok: null, detail: '' }; results.push(rec);
+    return (ok, detail) => { rec.ok = ok; rec.detail = detail || ''; b.className = 'res ' + (ok ? 'ok' : 'bad'); b.textContent = ok ? 'OK' : 'BLOCKED'; c.textContent = rec.detail; };
+  }
+  const timeout = (ms, label) => new Promise((_, rej) => setTimeout(() => rej(new Error(label || 'timeout ' + ms + ' ms')), ms));
+
+  function testScript(name, url) {
+    const done = row(name);
+    return new Promise(res => {
+      const s = document.createElement('script'); const t0 = Date.now();
+      s.src = url; s.onload = () => { done(true, (Date.now() - t0) + ' ms'); res(); };
+      s.onerror = () => { done(false, 'script did not load'); res(); };
+      setTimeout(() => { done(false, 'timeout 10 s'); res(); }, 10000);
+      document.head.append(s);
+    });
+  }
+  function testWs(name, url, proto) {
+    const done = row(name);
+    return new Promise(res => {
+      const t0 = Date.now(); let fin = false;
+      const end = (ok, d) => { if (fin) return; fin = true; done(ok, d); try { ws.close(); } catch {} res(); };
+      let ws;
+      try { ws = proto ? new WebSocket(url, proto) : new WebSocket(url); } catch (e) { done(false, String(e.message || e)); return res(); }
+      ws.onopen = () => end(true, 'opened in ' + (Date.now() - t0) + ' ms');
+      ws.onerror = () => end(false, 'error after ' + (Date.now() - t0) + ' ms');
+      ws.onclose = e => end(false, 'closed, code ' + e.code + ' after ' + (Date.now() - t0) + ' ms');
+      setTimeout(() => end(false, 'timeout 10 s'), 10000);
+    });
+  }
+  async function testFetch(name, url, cors) {
+    const done = row(name); const t0 = Date.now();
+    try {
+      const r = await Promise.race([fetch(url, cors ? { cache: 'no-store' } : { mode: 'no-cors', cache: 'no-store' }), timeout(10000)]);
+      done(true, (cors ? 'HTTP ' + r.status : 'reachable') + ' in ' + (Date.now() - t0) + ' ms');
+    } catch (e) { done(false, String(e.message || e)); }
+  }
+  function testSse(name, url) {
+    const done = row(name);
+    return new Promise(res => {
+      const t0 = Date.now(); let fin = false, es;
+      const end = (ok, d) => { if (fin) return; fin = true; done(ok, d); try { es.close(); } catch {} res(); };
+      try { es = new EventSource(url); } catch (e) { done(false, String(e.message || e)); return res(); }
+      es.onopen = () => end(true, 'stream opened in ' + (Date.now() - t0) + ' ms');
+      es.onerror = () => end(false, 'error after ' + (Date.now() - t0) + ' ms');
+      setTimeout(() => end(false, 'timeout 10 s'), 10000);
+    });
+  }
+  function testRtc(name) {
+    const done = row(name);
+    return new Promise(res => {
+      let fin = false; const kinds = new Set();
+      const end = () => { if (fin) return; fin = true; const ok = kinds.has('srflx') || kinds.has('relay'); done(ok, 'candidates: ' + ([...kinds].join(', ') || 'none')); try { pc.close(); } catch {} res(); };
+      let pc;
+      try { pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); } catch (e) { done(false, 'WebRTC unavailable'); return res(); }
+      pc.createDataChannel('x');
+      pc.onicecandidate = e => { if (!e.candidate) return end(); const m = / typ (\w+)/.exec(e.candidate.candidate); if (m) kinds.add(m[1]); };
+      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => end());
+      setTimeout(end, 8000);
+    });
+  }
+
+  (async () => {
+    await Promise.all([
+      testScript('Sync library from jsDelivr', 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js'),
+      testScript('Sync library from cdnjs', 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'),
+      testWs('Live relay 1 (emqx, port 8084)', 'wss://broker.emqx.io:8084/mqtt', 'mqtt'),
+      testWs('Live relay 2 (hivemq, port 8884)', 'wss://broker.hivemq.com:8884/mqtt', 'mqtt'),
+      testWs('Live relay 3 (shiftr, port 443)', 'wss://public.cloud.shiftr.io:443', 'mqtt'),
+      testWs('Any WebSocket on port 443 (postman-echo)', 'wss://ws.postman-echo.com/raw'),
+      testWs('PeerJS signalling WebSocket (port 443)', 'wss://0.peerjs.com/peerjs?key=peerjs&id=check' + Math.random().toString(36).slice(2) + '&token=x'),
+      testFetch('Plain HTTPS to GitHub API', 'https://api.github.com/zen', true),
+      testFetch('Plain HTTPS to Firebase (Google)', 'https://firebase.googleapis.com/'),
+      testFetch('Plain HTTPS to Firebase database host', 'https://whoswho-check-default-rtdb.europe-west1.firebasedatabase.app/.json'),
+      testFetch('Plain HTTPS to Google Apps Script', 'https://script.google.com/'),
+      testFetch('Plain HTTPS to ntfy.sh', 'https://ntfy.sh/v1/health', true),
+      testSse('Streaming HTTPS (server-sent events, ntfy.sh)', 'https://ntfy.sh/whoswho-check-' + Math.random().toString(36).slice(2) + '/sse'),
+      testRtc('Peer-to-peer (WebRTC through STUN)'),
+    ]);
+    const lines = ['Who\'s Who connection check', new Date().toISOString(), navigator.userAgent, ''];
+    for (const r of results) lines.push((r.ok ? 'OK      ' : 'BLOCKED ') + r.name + (r.detail ? '  [' + r.detail + ']' : ''));
+    out.value = lines.join('\n');
+    copy.disabled = false;
+  })();
+
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(out.value); } catch { out.select(); document.execCommand('copy'); }
+    copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy results'; }, 1500);
+  };
+})();
+</script>
+</body>
+</html>
