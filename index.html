@@ -861,7 +861,13 @@
   // ---------- live room over a public relay ----------
   // Every message is AES-GCM encrypted in the browser with a key derived from the room code. The relay keeps nothing
   // (no retained messages) and only sees ciphertext on a topic it cannot link back to the code.
-  const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+  // Three independent public relays at once. Two people only need ONE in common to see each other, and the last one
+  // uses the standard web port (443), which office firewalls and VPNs do not block.
+  const RELAYS = [
+    { name: 'emqx', url: 'wss://broker.emqx.io:8084/mqtt' },
+    { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
+    { name: 'shiftr', url: 'wss://public.cloud.shiftr.io:443', username: 'public', password: 'public' },
+  ];
   async function connectRoom(code) {
     if (!window.mqtt || !window.crypto || !crypto.subtle) return null;
     const enc = new TextEncoder(), dec = new TextDecoder();
@@ -879,57 +885,75 @@
     const open = async str => { const u = unb64(str); return JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, key, u.slice(12)))); };
 
     const peerId = rand() + rand();
-    let mine = {}, myUpdated = Date.now(), isConn = false, fireT = null, chain = Promise.resolve();
+    let mine = {}, myUpdated = Date.now(), seq = 0, sealed = null, fireT = null, chain = Promise.resolve(), wasConn = false;
     const others = new Map(), peerHandlers = [], connHandlers = [];
     const snap = () => [{ peer: peerId, isMe: true, sameTab: true, presence: mine, updatedAt: myUpdated }, ...others.values()];
     const fire = () => { if (fireT) return; fireT = setTimeout(() => { fireT = null; const peers = snap(); peerHandlers.forEach(h => h({ peers })); }, 40); };
 
-    const client = mqtt.connect(BROKER, {
-      clientId: 'ww_' + peerId, clean: true, keepalive: 30, reconnectPeriod: 2000, connectTimeout: 10000,
-      will: { topic: `${base}/bye/${peerId}`, payload: '1', qos: 0, retain: false },
-    });
-    const publishState = () => { chain = chain.then(async () => { if (isConn) client.publish(`${base}/s/${peerId}`, await seal({ p: mine })); }).catch(() => {}); };
-    client.on('connect', () => {
-      isConn = true;
-      client.subscribe(`${base}/#`, () => { client.publish(`${base}/hello`, peerId); publishState(); });
-      connHandlers.forEach(h => h(true));
-    });
-    const down = () => { if (!isConn) return; isConn = false; connHandlers.forEach(h => h(false)); };
-    client.on('close', down); client.on('offline', down);
-    client.on('message', async (topic, payload) => {
-      const part = topic.slice(base.length + 1).split('/');
-      if (part[0] === 'hello') { if (String(payload) !== peerId) setTimeout(publishState, Math.random() * 400); return; }
-      if (part[1] === peerId || !part[1]) return;
-      if (part[0] === 'bye') { if (others.delete(part[1])) fire(); return; }
-      if (part[0] === 's') {
+    const only = new URLSearchParams(location.search).get('relay');          // testing aid: ?relay=shiftr
+    const links = RELAYS.filter(r => !only || r.name === only).map(r => ({ ...r, up: false, client: null }));
+    const anyUp = () => links.some(l => l.up);
+    const connChanged = () => { const now = anyUp(); if (now !== wasConn) { wasConn = now; connHandlers.forEach(h => h(now)); } renderDiag(); };
+    const send = (topic, payload, link) => { for (const l of link ? [link] : links) if (l.up) { try { l.client.publish(topic, payload); } catch {} } };
+
+    // full state goes out when it changes or when someone asks; in between, only a tiny "still here" beat
+    const publishState = link => { chain = chain.then(async () => { if (!sealed) sealed = await seal({ p: mine, n: seq }); send(`${base}/s/${peerId}`, sealed, link); }).catch(() => {}); };
+
+    async function onMessage(link, topic, payload) {
+      const part = topic.slice(base.length + 1).split('/'), kind = part[0], who = part[1], text = String(payload);
+      if (kind === 'hello') { if (text !== peerId) setTimeout(() => publishState(link), Math.random() * 400); return; }
+      if (kind === 'q') { if (who === peerId) publishState(link); return; }
+      if (!who || who === peerId) return;
+      if (kind === 'bye') { const p = others.get(who); if (p) p.seen = Math.min(p.seen, Date.now() - 25000); return; }   // gone unless another relay still hears them
+      if (kind === 'a') {
+        const p = others.get(who);
+        if (p && p.n === Number(text)) p.seen = Date.now(); else send(`${base}/q/${who}`, '1', link);
+        return;
+      }
+      if (kind === 's') {
         try {
-          const msg = await open(String(payload));
-          const prev = others.get(part[1]);
-          const same = prev && JSON.stringify(prev.presence) === JSON.stringify(msg.p);
-          others.set(part[1], { peer: part[1], isMe: false, sameTab: false, presence: msg.p || {}, updatedAt: same ? prev.updatedAt : Date.now(), seen: Date.now() });
+          const msg = await open(text), prev = others.get(who), n = Number(msg.n) || 0;
+          if (prev && n < prev.n) return;
+          const same = prev && prev.n === n;
+          others.set(who, { peer: who, isMe: false, sameTab: false, presence: msg.p || {}, n, updatedAt: same ? prev.updatedAt : Date.now(), seen: Date.now() });
           if (!same) fire();
         } catch { /* not for this room, or tampered: ignore */ }
       }
-    });
-    // heartbeat: re-announce myself, forget people who went silent (phone locked, tab closed without a goodbye)
+    }
+
+    for (const link of links) {
+      const c = link.client = mqtt.connect(link.url, {
+        clientId: 'ww_' + peerId + '_' + link.name, clean: true, keepalive: 30, reconnectPeriod: 3000, connectTimeout: 10000,
+        username: link.username, password: link.password,
+        will: { topic: `${base}/bye/${peerId}`, payload: '1', qos: 0, retain: false },
+      });
+      c.on('connect', () => {
+        c.subscribe(`${base}/#`, () => { link.up = true; send(`${base}/hello`, peerId, link); publishState(link); connChanged(); });
+      });
+      const down = () => { if (link.up) { link.up = false; connChanged(); } };
+      c.on('close', down); c.on('offline', down); c.on('error', () => {});
+      c.on('message', (topic, payload) => onMessage(link, topic, payload));
+    }
+
     setInterval(() => {
-      publishState();
+      send(`${base}/a/${peerId}`, String(seq));
       let changed = false;
-      for (const [id, p] of others) if (Date.now() - p.seen > 50000) { others.delete(id); changed = true; }
+      for (const [id, p] of others) if (Date.now() - p.seen > 35000) { others.delete(id); changed = true; }
       if (changed) fire();
-    }, 15000);
-    addEventListener('pagehide', () => { try { client.publish(`${base}/bye/${peerId}`, '1'); } catch {} });
-    addEventListener('pageshow', publishState);
+    }, 10000);
+    addEventListener('pagehide', () => send(`${base}/bye/${peerId}`, '1'));
+    addEventListener('pageshow', () => publishState());
 
     return {
       peers: snap,
-      connected: () => isConn,
-      onConnection(h) { connHandlers.push(h); setTimeout(() => h(isConn), 0); },
+      connected: anyUp,
+      relays: () => links.map(l => `${l.name} ${l.up ? 'up' : 'down'}`).join(' · '),
+      onConnection(h) { connHandlers.push(h); setTimeout(() => h(anyUp()), 0); },
       onPeers(h) { peerHandlers.push(h); fire(); },
       async presence(patch) {
         mine = { ...mine };
         for (const [k, v] of Object.entries(patch)) { if (v === null) delete mine[k]; else mine[k] = v; }
-        myUpdated = Date.now();
+        myUpdated = Date.now(); seq++; sealed = null;
         publishState(); fire();
       },
     };
@@ -962,7 +986,7 @@
     box.hidden = !showDiag;
     if (!showDiag) return;
     box.replaceChildren();
-    const lines = [`room code: ${CODE ? prettyCode(CODE) : '-'} · relay: ${room ? (room.connected() ? 'connected' : 'not connected') : 'not started'} · my id: ${me.id}`];
+    const lines = [`room code: ${CODE ? prettyCode(CODE) : '-'} · relays: ${room ? room.relays() : 'not started'} · my id: ${me.id}`];
     if (room) for (const p of room.peers()) {
       const pr = p.presence || {};
       lines.push(`${p.sameTab ? 'THIS DEVICE' : 'someone else'} · conn ${String(p.peer).slice(0, 6)} · id ${pr.id || '(none yet)'} · ${pr.n || '(no name)'} · ${pr.ok ? 'on the board' : 'filling in'}${pr.h ? ' · HOST' : ''}`);
@@ -1010,7 +1034,12 @@
       return;
     }
     const liveText = () => { const n = room.peers().length; return `Live · ${n} ${n === 1 ? 'person' : 'people'} here`; };
-    room.onConnection(on => setStatus(on, on ? liveText() : 'Connecting…'));
+    let offlineT = null;
+    room.onConnection(on => {
+      clearTimeout(offlineT);
+      setStatus(on, on ? liveText() : 'Connecting…');
+      if (!on) offlineT = setTimeout(() => { if (!room.connected()) setStatus(false, 'Can\'t reach the live sync. Try another network, or turn off the VPN.'); }, 15000);
+    });
     room.onPeers(() => {
       checkTwin();
       const S = snapshot();
